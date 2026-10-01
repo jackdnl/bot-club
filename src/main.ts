@@ -32,7 +32,6 @@ const guestsDialog = $<HTMLDialogElement>('guests');
 const guestsClose = $<HTMLButtonElement>('guests-close');
 const guestList = $<HTMLOListElement>('guest-list');
 const guestsEmpty = $('guests-empty');
-const empty = $('empty');
 const notice = $('notice');
 const card = $('card');
 const metricsEls = {
@@ -142,7 +141,6 @@ function spawn(requested: number): number {
   }
   if (n < requested) say(`Only ${n} more fit ${room.reason === 'club' ? 'in the club' : 'in the line'}.`);
   trimRoster();
-  empty.classList.add('gone');
   updateControls();
   return n;
 }
@@ -320,7 +318,6 @@ resetButton.addEventListener('click', () => {
   turnedAway = 0;
   pinned = false;
   setCardTicket(null);
-  empty.classList.remove('gone');
   notice.classList.remove('show');
   renderGuests();
   updateControls();
@@ -665,9 +662,6 @@ function resize(): void {
   const bottomInset = h - dock.getBoundingClientRect().top;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   world.resize(w, h, topInset, bottomInset, dpr);
-  const { floor } = world.layout;
-  empty.style.left = `${(floor.x0 + floor.x1) / 2}px`;
-  empty.style.top = `${(floor.y0 + floor.y1) / 2}px`;
   notice.style.bottom = `${bottomInset + 10}px`;
 }
 

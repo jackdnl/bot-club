@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Bot Club</title>
     <meta name="description" content="A tiny top-down nightclub. Write the door policy and Cloudflare Clef-flash decides who gets in, one bot at a time." />
-    <meta name="theme-color" content="#161210" />
+    <meta name="theme-color" content="#0d0c12" />
     <meta name="color-scheme" content="dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -32,9 +32,9 @@
       </h1>
 
       <form class="policy" id="policy-form" autocomplete="off" novalidate>
-        <label class="eyebrow" for="policy">Door policy</label>
+        <label class="quiet" for="policy">Door policy</label>
         <div class="policy-field">
-          <input id="policy" name="policy" maxlength="140" spellcheck="false" enterkeyhint="done" />
+          <input id="policy" name="policy" maxlength="140" spellcheck="false" enterkeyhint="done" placeholder="Door policy" />
           <button type="submit" id="apply" class="apply" disabled>Apply</button>
           <div class="presets-wrap">
             <button type="button" id="presets-toggle" class="ghost" aria-haspopup="menu" aria-expanded="false" aria-controls="presets">Presets</button>
@@ -51,11 +51,6 @@
         <div class="m-extra"><dt>turned away</dt><dd id="m-out">0</dd></div>
       </dl>
     </header>
-
-    <div id="empty" class="empty" aria-hidden="true">
-      <p class="empty-title">Doors open.</p>
-      <p class="empty-sub">Send in some bots. Clef-flash checks each one at the door.</p>
-    </div>
 
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
 
@@ -83,7 +78,7 @@
         <button type="button" id="spawn" class="primary" aria-describedby="spawn-hint">
           <span id="spawn-label">+25 bots</span>
         </button>
-        <span id="spawn-hint" class="hint">Hold to keep them coming</span>
+        <span id="spawn-hint" class="quiet">Hold to keep them coming</span>
       </div>
       <div class="tools">
         <button type="button" id="retry-all" class="ghost warn" hidden>Retry</button>
@@ -91,7 +86,7 @@
         <button type="button" id="reset" class="ghost">Reset</button>
       </div>
       <p class="credit">
-        <span class="credit-long">Decisions by </span><a href="https://developers.cloudflare.com/workers-ai/models/clef-flash/" target="_blank" rel="noopener">Clef-flash</a> on Cloudflare
+        <a href="https://developers.cloudflare.com/workers-ai/models/clef-flash/" target="_blank" rel="noopener">Clef-flash</a>
         <span aria-hidden="true">·</span>
         <a href="https://github.com/jackdnl/bot-club" target="_blank" rel="noopener">GitHub</a>
       </p>

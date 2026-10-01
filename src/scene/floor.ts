@@ -1,58 +1,57 @@
 import type { Layout, Rect } from './layout';
 
 export const INK = '243, 235, 225';
-const BG = '#161210';
-const ROOM = '#1e1916';
-const FLOOR = '#241e1a';
+/** Lamp light spilling out of the doors. */
+export const WARM = '255, 205, 150';
+const NIGHT = '#0d0c12';
+const WALL = '#2d2735';
+const ROOM = '#16121b';
+const GROUT = '#09080c';
+const TILE = '#1d1823';
+const KIT = '#241e2c';
+const KIT_DARK = '#0e0c12';
+
+const TAU = Math.PI * 2;
+
+export interface Booth {
+  dj: { x: number; y: number; r: number };
+  deck: Rect;
+  platters: { x: number; y: number; r: number }[];
+}
+
+/** Where the moving parts of the booth sit, shared by the static paint and the live layer. */
+export function boothParts(layout: Layout): Booth {
+  const { booth, r } = layout;
+  const bw = booth.x1 - booth.x0;
+  const bh = booth.y1 - booth.y0;
+  const deckH = Math.min(bh * 0.46, r * 2.3);
+  const deck: Rect = { x0: booth.x0 + 5, y0: booth.y1 - deckH - 3, x1: booth.x1 - 5, y1: booth.y1 - 3 };
+  const djR = Math.min(r * 1.05, (deck.y0 - booth.y0) * 0.46);
+  const py = (deck.y0 + deck.y1) / 2;
+  const pr = Math.min(deckH * 0.4, bw * 0.12);
+  const cx = (booth.x0 + booth.x1) / 2;
+  return {
+    dj: { x: cx, y: booth.y0 + (deck.y0 - booth.y0) * 0.5, r: djR },
+    deck,
+    platters: [
+      { x: booth.x0 + bw * 0.24, y: py, r: pr },
+      { x: booth.x1 - bw * 0.24, y: py, r: pr },
+    ],
+  };
+}
 
 function rect(ctx: CanvasRenderingContext2D, r: Rect) {
   ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
 }
 
-function grid(ctx: CanvasRenderingContext2D, area: Rect, step: number, alpha: number, ox = 0, oy = 0) {
+/** Light leaving one door: a wedge that widens and fades across the pavement. */
+export function spillPath(ctx: CanvasRenderingContext2D, x: number, half: number, y: number, length: number) {
   ctx.beginPath();
-  const startX = area.x0 + ((((ox - area.x0) % step) + step) % step);
-  for (let x = startX; x <= area.x1; x += step) {
-    ctx.moveTo(Math.round(x) + 0.5, area.y0);
-    ctx.lineTo(Math.round(x) + 0.5, area.y1);
-  }
-  const startY = area.y0 + ((((oy - area.y0) % step) + step) % step);
-  for (let y = startY; y <= area.y1; y += step) {
-    ctx.moveTo(area.x0, Math.round(y) + 0.5);
-    ctx.lineTo(area.x1, Math.round(y) + 0.5);
-  }
-  ctx.strokeStyle = `rgba(${INK}, ${alpha})`;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-}
-
-function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, align: CanvasTextAlign = 'left', alpha = 0.3) {
-  ctx.save();
-  ctx.font = `600 ${size}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-  ctx.letterSpacing = `${(size * 0.22).toFixed(1)}px`;
-  ctx.fillStyle = `rgba(${INK}, ${alpha})`;
-  ctx.textAlign = align;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x, y);
-  ctx.restore();
-}
-
-/** Diagonal hatching clipped to the wall poché. */
-function hatch(ctx: CanvasRenderingContext2D, clip: () => void, bounds: Rect, step: number) {
-  ctx.save();
-  ctx.beginPath();
-  clip();
-  ctx.clip('evenodd');
-  ctx.beginPath();
-  const span = bounds.y1 - bounds.y0;
-  for (let x = bounds.x0 - span; x < bounds.x1; x += step) {
-    ctx.moveTo(x, bounds.y1);
-    ctx.lineTo(x + span, bounds.y0);
-  }
-  ctx.strokeStyle = `rgba(${INK}, 0.16)`;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.restore();
+  ctx.moveTo(x - half, y);
+  ctx.lineTo(x + half, y);
+  ctx.lineTo(x + half * 1.8, y + length);
+  ctx.lineTo(x - half * 1.8, y + length);
+  ctx.closePath();
 }
 
 /** Paints everything that never moves into an offscreen canvas. */
@@ -62,56 +61,154 @@ export function paintFloor(layout: Layout, dpr: number): HTMLCanvasElement {
   canvas.height = Math.round(layout.h * dpr);
   const ctx = canvas.getContext('2d')!;
   ctx.scale(dpr, dpr);
-  const { shell, room, floor, booth, speakers, lanes, wallT, street, r } = layout;
-  const small = Math.max(8, Math.min(10.5, r * 1.0));
+  const { w, h, shell, room, floor, booth, speakers, lanes, wallT, street, kerbY, r, tile, cols, rows } = layout;
 
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, layout.w, layout.h);
+  ctx.fillStyle = NIGHT;
+  ctx.fillRect(0, 0, w, h);
 
-  // Street paving: big slabs, very faint, with a kerb line at the bottom.
-  grid(ctx, { x0: 0, y0: street.y0, x1: layout.w, y1: street.y1 }, layout.tile * 2.4, 0.028, layout.w / 2, street.y0);
-  ctx.fillStyle = `rgba(${INK}, 0.05)`;
-  ctx.fillRect(0, street.y1 - 1, layout.w, 1);
-
-  // Interior.
-  ctx.fillStyle = ROOM;
-  ctx.fillRect(room.x0, room.y0, room.x1 - room.x0, room.y1 - room.y0);
-  grid(ctx, room, layout.tile, 0.035, (room.x0 + room.x1) / 2, room.y0);
-
-  // Dance floor: finer checker, a hairline border, corner ticks.
-  ctx.fillStyle = FLOOR;
-  ctx.fillRect(floor.x0, floor.y0, floor.x1 - floor.x0, floor.y1 - floor.y0);
-  const cell = layout.tile * 0.75;
-  ctx.fillStyle = `rgba(${INK}, 0.022)`;
-  for (let y = floor.y0, row = 0; y < floor.y1; y += cell, row++) {
-    for (let x = floor.x0 + (row % 2) * cell, col = 0; x < floor.x1; x += cell * 2, col++) {
-      ctx.fillRect(x, y, Math.min(cell, floor.x1 - x), Math.min(cell, floor.y1 - y));
+  // Pavement: staggered slabs, brightest by the club wall.
+  const pave = ctx.createLinearGradient(0, street.y0, 0, kerbY);
+  pave.addColorStop(0, '#201c28');
+  pave.addColorStop(1, '#14121a');
+  ctx.fillStyle = pave;
+  ctx.fillRect(0, street.y0, w, kerbY - street.y0);
+  const slab = r * 5;
+  const courses = Math.max(1, Math.round((kerbY - street.y0) / slab));
+  const course = (kerbY - street.y0) / courses;
+  ctx.beginPath();
+  for (let row = 0; row < courses; row++) {
+    const y = street.y0 + row * course;
+    if (row) {
+      ctx.moveTo(0, Math.round(y) + 0.5);
+      ctx.lineTo(w, Math.round(y) + 0.5);
+    }
+    for (let x = w / 2 + (row % 2 ? slab : 0) - Math.ceil(w / slab) * slab; x < w; x += slab * 2) {
+      ctx.moveTo(Math.round(x) + 0.5, y);
+      ctx.lineTo(Math.round(x) + 0.5, y + course);
     }
   }
-  ctx.strokeStyle = `rgba(${INK}, 0.14)`;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
   ctx.lineWidth = 1;
-  ctx.strokeRect(floor.x0 + 0.5, floor.y0 + 0.5, floor.x1 - floor.x0 - 1, floor.y1 - floor.y0 - 1);
-  label(ctx, 'DANCE FLOOR', floor.x0 + 10, floor.y1 - small - 2, small);
+  ctx.stroke();
 
-  // Walls: outer and inner hairlines with hatched poché; the entrance wall has openings.
-  const openings = lanes.map((lane) => [lane.x - lane.half, lane.x + lane.half] as const);
-  const wallPath = () => {
-    rect(ctx, shell);
-    rect(ctx, room);
-    for (const [a, b] of openings) ctx.rect(a, room.y1, b - a, wallT);
-  };
+  // Kerb, then the road the bots arrive from.
+  const kerb = Math.max(3, r * 0.36);
+  ctx.fillStyle = '#0a090e';
+  ctx.fillRect(0, kerbY, w, h - kerbY);
+  ctx.fillStyle = '#322d3b';
+  ctx.fillRect(0, kerbY - kerb, w, kerb);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.fillRect(0, kerbY, w, kerb * 0.7);
+
+  // The club lights its own doorstep.
+  const cx = (room.x0 + room.x1) / 2;
+  const reach = (lanes[lanes.length - 1]!.x - lanes[0]!.x) / 2 + r * 9;
+  const depth = Math.min(kerbY - street.y0, r * 13);
   ctx.save();
   ctx.beginPath();
-  wallPath();
-  ctx.fillStyle = `rgba(${INK}, 0.07)`;
-  ctx.fill('evenodd');
+  ctx.rect(0, street.y0, w, kerbY - street.y0);
+  ctx.clip();
+  ctx.translate(cx, street.y0);
+  ctx.scale(1, depth / reach);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, reach);
+  glow.addColorStop(0, `rgba(${WARM}, 0.26)`);
+  glow.addColorStop(0.5, `rgba(${WARM}, 0.1)`);
+  glow.addColorStop(1, `rgba(${WARM}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(-reach, 0, reach * 2, reach);
   ctx.restore();
-  hatch(ctx, wallPath, shell, 5);
 
-  ctx.strokeStyle = `rgba(${INK}, 0.55)`;
-  ctx.lineWidth = 1.25;
+  // A strip of carpet and a wedge of light at every door, roped off from the next.
+  const rope = r * 4.2;
+  for (const lane of lanes) {
+    const carpet = ctx.createLinearGradient(0, shell.y1, 0, shell.y1 + rope);
+    carpet.addColorStop(0, '#453848');
+    carpet.addColorStop(1, '#2b2430');
+    ctx.fillStyle = carpet;
+    ctx.beginPath();
+    ctx.roundRect(lane.x - lane.half + 1, shell.y1, lane.half * 2 - 2, rope, [0, 0, 3, 3]);
+    ctx.fill();
+    const spill = ctx.createLinearGradient(0, shell.y1, 0, shell.y1 + rope * 1.5);
+    spill.addColorStop(0, `rgba(${WARM}, 0.34)`);
+    spill.addColorStop(1, `rgba(${WARM}, 0)`);
+    ctx.fillStyle = spill;
+    spillPath(ctx, lane.x, lane.half, shell.y1, rope * 1.5);
+    ctx.fill();
+  }
+  const gapX = lanes[1]!.x - lanes[0]!.x;
+  const posts = [lanes[0]!.x - gapX / 2, ...lanes.map((lane) => lane.x + gapX / 2)];
+  ctx.strokeStyle = 'rgba(226, 189, 119, 0.4)';
+  ctx.lineWidth = Math.max(1.25, r * 0.13);
   ctx.beginPath();
-  // Top and sides as closed runs; bottom wall broken by each opening.
+  for (const px of posts) {
+    ctx.moveTo(px, shell.y1);
+    ctx.lineTo(px, shell.y1 + rope);
+  }
+  ctx.stroke();
+  const postR = Math.max(2, r * 0.24);
+  for (const px of posts) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.arc(px + 1, shell.y1 + rope + 1.5, postR, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#e2bd77';
+    ctx.beginPath();
+    ctx.arc(px, shell.y1 + rope, postR, 0, TAU);
+    ctx.fill();
+  }
+
+  // Interior: dark room, walls throwing shadow inwards.
+  ctx.fillStyle = ROOM;
+  ctx.fillRect(room.x0, room.y0, room.x1 - room.x0, room.y1 - room.y0);
+  const shade = r * 2.4;
+  // Each edge: the strip to shade, then the gradient from the wall inwards.
+  const edges: [Rect, number, number, number, number][] = [
+    [{ x0: room.x0, y0: room.y0, x1: room.x1, y1: room.y0 + shade }, 0, room.y0, 0, room.y0 + shade],
+    [{ x0: room.x0, y0: room.y1 - shade * 0.6, x1: room.x1, y1: room.y1 }, 0, room.y1, 0, room.y1 - shade * 0.6],
+    [{ x0: room.x0, y0: room.y0, x1: room.x0 + shade, y1: room.y1 }, room.x0, 0, room.x0 + shade, 0],
+    [{ x0: room.x1 - shade, y0: room.y0, x1: room.x1, y1: room.y1 }, room.x1, 0, room.x1 - shade, 0],
+  ];
+  for (const [strip, gx0, gy0, gx1, gy1] of edges) {
+    const { x0: x, y0: y } = strip;
+    const ew = strip.x1 - strip.x0;
+    const eh = strip.y1 - strip.y0;
+    const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    g.addColorStop(0, 'rgba(0, 0, 0, 0.42)');
+    g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, ew, eh);
+  }
+
+  // Dance floor: unlit light tiles in a dark frame. The live layer adds the colour.
+  const pad = Math.max(2, r * 0.3);
+  ctx.fillStyle = '#2a2431';
+  ctx.beginPath();
+  ctx.roundRect(floor.x0 - pad, floor.y0 - pad, floor.x1 - floor.x0 + pad * 2, floor.y1 - floor.y0 + pad * 2, pad);
+  ctx.fill();
+  ctx.fillStyle = GROUT;
+  ctx.fillRect(floor.x0, floor.y0, floor.x1 - floor.x0, floor.y1 - floor.y0);
+  const seam = tileSeam(layout) / 2;
+  ctx.fillStyle = TILE;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      ctx.fillRect(floor.x0 + i * tile + seam, floor.y0 + j * tile + seam, tile - seam * 2, tile - seam * 2);
+    }
+  }
+
+  // Walls: one solid mass with a lit top edge; the entrance wall has six openings.
+  const openings = lanes.map((lane) => [lane.x - lane.half, lane.x + lane.half] as const);
+  ctx.beginPath();
+  rect(ctx, shell);
+  rect(ctx, room);
+  for (const [a, b] of openings) ctx.rect(a, room.y1, b - a, wallT);
+  ctx.fillStyle = WALL;
+  ctx.fill('evenodd');
+  ctx.fillStyle = '#4a3d40';
+  for (const [a, b] of openings) ctx.fillRect(a, room.y1, b - a, wallT);
+
+  ctx.strokeStyle = `rgba(${INK}, 0.16)`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
   for (const y of [shell.y1, room.y1]) {
     const inset = y === room.y1 ? wallT : 0;
     let x = shell.x0 + inset;
@@ -139,86 +236,107 @@ export function paintFloor(layout: Layout, dpr: number): HTMLCanvasElement {
   }
   ctx.stroke();
 
-  // Plan-style door swings: dashed quarter arcs into the room.
-  ctx.save();
-  ctx.setLineDash([2, 3]);
-  ctx.strokeStyle = `rgba(${INK}, 0.2)`;
-  ctx.lineWidth = 1;
-  for (const lane of lanes) {
-    const hx = lane.x - lane.half;
-    const len = lane.half * 2;
-    ctx.beginPath();
-    ctx.arc(hx, room.y1, len, -Math.PI / 2, 0);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // Queue rope: posts between lanes on the street side.
-  const ropeLen = r * 3.6;
-  ctx.strokeStyle = `rgba(${INK}, 0.16)`;
-  ctx.lineWidth = 1;
-  const posts: number[] = [lanes[0]!.x - (lanes[1]!.x - lanes[0]!.x) / 2];
-  for (let i = 0; i < lanes.length; i++) {
-    const next = lanes[i + 1];
-    posts.push(next ? (lanes[i]!.x + next.x) / 2 : lanes[i]!.x + (lanes[i]!.x - lanes[i - 1]!.x) / 2);
-  }
+  // DJ booth: a riser against the back wall with the decks at its front edge.
+  const parts = boothParts(layout);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
   ctx.beginPath();
-  for (const px of posts) {
-    ctx.moveTo(px, shell.y1 + 2);
-    ctx.lineTo(px, shell.y1 + ropeLen);
-  }
-  ctx.stroke();
-  ctx.fillStyle = `rgba(${INK}, 0.32)`;
-  for (const px of posts) {
-    ctx.beginPath();
-    ctx.arc(px, shell.y1 + ropeLen, 1.8, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const entranceX = posts[0]! - 10;
-  if (entranceX - small * 7 > street.x0) label(ctx, 'ENTRANCE', entranceX, shell.y1 + ropeLen * 0.55, small, 'right', 0.26);
-  else label(ctx, 'ENTRANCE', (posts[0]! + posts[posts.length - 1]!) / 2, shell.y1 + ropeLen + small * 1.4, small, 'center', 0.22);
-  label(ctx, 'STREET', street.x0 + 8, street.y1 - small, small, 'left', 0.2);
-
-  // DJ booth: deck with two platters and a mixer.
-  const bw = booth.x1 - booth.x0;
-  const bh = booth.y1 - booth.y0;
-  ctx.fillStyle = `rgba(${INK}, 0.05)`;
-  ctx.strokeStyle = `rgba(${INK}, 0.45)`;
-  ctx.lineWidth = 1.25;
-  ctx.beginPath();
-  ctx.roundRect(booth.x0, booth.y0 - 2, bw, bh + 2, [0, 0, 6, 6]);
+  ctx.roundRect(booth.x0 + 2, booth.y0, booth.x1 - booth.x0, booth.y1 - booth.y0 + 4, [0, 0, 8, 8]);
   ctx.fill();
-  ctx.stroke();
-  const pr = Math.min(bh * 0.34, bw * 0.14);
-  ctx.lineWidth = 1;
-  for (const px of [booth.x0 + bw * 0.22, booth.x1 - bw * 0.22]) {
+  ctx.fillStyle = KIT;
+  ctx.beginPath();
+  ctx.roundRect(booth.x0, booth.y0, booth.x1 - booth.x0, booth.y1 - booth.y0, [0, 0, 7, 7]);
+  ctx.fill();
+  const { deck, platters } = parts;
+  ctx.fillStyle = '#39313f';
+  ctx.beginPath();
+  ctx.roundRect(deck.x0, deck.y0, deck.x1 - deck.x0, deck.y1 - deck.y0, 4);
+  ctx.fill();
+  ctx.fillStyle = `rgba(${INK}, 0.12)`;
+  ctx.fillRect(deck.x0 + 3, deck.y0, deck.x1 - deck.x0 - 6, 1);
+  platters.forEach((p, i) => {
+    ctx.fillStyle = KIT_DARK;
     ctx.beginPath();
-    ctx.arc(px, booth.y0 + bh * 0.5, pr, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(px, booth.y0 + bh * 0.5, pr * 0.25, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.strokeRect(booth.x0 + bw * 0.42, booth.y0 + bh * 0.25, bw * 0.16, bh * 0.5);
-
-  // Speakers: squares with concentric cones.
-  for (const s of speakers) {
-    const sw = s.x1 - s.x0;
-    ctx.fillStyle = `rgba(${INK}, 0.04)`;
-    ctx.strokeStyle = `rgba(${INK}, 0.42)`;
-    ctx.lineWidth = 1.25;
-    ctx.beginPath();
-    ctx.roundRect(s.x0, s.y0, sw, s.y1 - s.y0, 3);
+    ctx.arc(p.x, p.y, p.r, 0, TAU);
     ctx.fill();
-    ctx.stroke();
+    ctx.strokeStyle = `rgba(${INK}, 0.14)`;
     ctx.lineWidth = 1;
-    for (const f of [0.36, 0.22, 0.08]) {
-      ctx.beginPath();
-      ctx.arc((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, sw * f, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.68, 0, TAU);
+    ctx.stroke();
+    ctx.fillStyle = i ? '#45dde6' : '#ff6b5b';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 0.34, 0, TAU);
+    ctx.fill();
+  });
+  // Mixer: three knobs between the decks.
+  const knob = Math.max(1.2, platters[0]!.r * 0.16);
+  ctx.fillStyle = `rgba(${INK}, 0.5)`;
+  for (const k of [-1, 0, 1]) {
+    ctx.beginPath();
+    ctx.arc((deck.x0 + deck.x1) / 2 + k * knob * 3.4, (deck.y0 + deck.y1) / 2, knob, 0, TAU);
+    ctx.fill();
   }
-  label(ctx, 'DJ', (booth.x0 + booth.x1) / 2, booth.y1 + small + 3, small, 'center', 0.3);
 
+  // Speakers: a cabinet either side, cone facing up.
+  for (const s of speakers) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.roundRect(s.x0 + 2, s.y0 + 3, s.x1 - s.x0, s.y1 - s.y0, 4);
+    ctx.fill();
+    ctx.fillStyle = KIT;
+    ctx.beginPath();
+    ctx.roundRect(s.x0, s.y0, s.x1 - s.x0, s.y1 - s.y0, 4);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${INK}, 0.1)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    const sx = (s.x0 + s.x1) / 2;
+    const sy = (s.y0 + s.y1) / 2;
+    const cone = (s.x1 - s.x0) * 0.34;
+    ctx.fillStyle = KIT_DARK;
+    ctx.beginPath();
+    ctx.arc(sx, sy, cone, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${INK}, 0.16)`;
+    ctx.stroke();
+    ctx.fillStyle = '#3a323f';
+    ctx.beginPath();
+    ctx.arc(sx, sy, cone * 0.36, 0, TAU);
+    ctx.fill();
+  }
+
+  return canvas;
+}
+
+/** Width of the dark joint between two light tiles. */
+export function tileSeam(layout: Layout): number {
+  return Math.max(1.5, layout.tile * 0.07);
+}
+
+/** A shaded body for one bot colour, drawn once and stamped for every bot. */
+export function paintBody(color: string, radius: number, dpr: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  const size = Math.ceil(radius * 2 * dpr) + 2;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const c = size / 2;
+  const R = c - 1;
+  ctx.beginPath();
+  ctx.arc(c, c, R, 0, TAU);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.clip();
+  // Lit from the top left, falling into shade at the opposite rim.
+  const dark = ctx.createRadialGradient(c - R * 0.3, c - R * 0.35, R * 0.7, c - R * 0.3, c - R * 0.35, R * 1.55);
+  dark.addColorStop(0, 'rgba(30, 10, 45, 0)');
+  dark.addColorStop(1, 'rgba(30, 10, 45, 0.42)');
+  ctx.fillStyle = dark;
+  ctx.fillRect(0, 0, size, size);
+  const lit = ctx.createRadialGradient(c - R * 0.38, c - R * 0.44, 0, c - R * 0.38, c - R * 0.44, R * 0.9);
+  lit.addColorStop(0, 'rgba(255, 255, 255, 0.36)');
+  lit.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = lit;
+  ctx.fillRect(0, 0, size, size);
   return canvas;
 }
