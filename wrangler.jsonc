@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bot-club",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-15",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/"]
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  // Approximate per-IP throttle in front of Workers AI (counted per Cloudflare
+  // location, eventually consistent). It slows a single noisy client; it is not
+  // a global spend cap. The namespace id is specific to this Worker.
+  "ratelimits": [
+    {
+      "name": "ADMIT_LIMITER",
+      "namespace_id": "26100107",
+      "simple": { "limit": 120, "period": 10 }
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
