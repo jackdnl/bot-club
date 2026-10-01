@@ -28,13 +28,18 @@ export interface Layout {
   queueY: number;
   /** Walkable street below the club. */
   street: Rect;
+  /** Where the pavement ends and the road begins. */
+  kerbY: number;
   /** Where the line mills about. */
   waitArea: Rect;
   floor: Rect;
   booth: Rect;
   speakers: [Rect, Rect];
   obstacles: Rect[];
+  /** Side of one light tile; the dance floor is exactly `cols` by `rows` of them. */
   tile: number;
+  cols: number;
+  rows: number;
 }
 
 export const LANE_COUNT = 6;
@@ -46,16 +51,16 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * free for the header and the control dock.
  */
 export function computeLayout(w: number, h: number, top: number, bottom: number): Layout {
-  const r = clamp(Math.min(w, h * 1.1) * 0.0108, 6.5, 12);
   const margin = clamp(w * 0.035, 12, 40);
   const y0 = top + 6;
   const y1 = Math.max(y0 + 160, h - bottom - 2);
   const height = y1 - y0;
-  const wallT = clamp(r * 1.05, 7, 12);
+  const r = clamp(Math.sqrt(w * height) * 0.0155, 6.5, 14);
+  const wallT = clamp(r * 1.05, 7, 14);
 
   const shellWidth = Math.min(w - margin * 2, 1320);
   const sx0 = (w - shellWidth) / 2;
-  const roomShare = height < 420 ? 0.56 : w / height > 1.6 ? 0.6 : 0.63;
+  const roomShare = height < 420 ? 0.6 : 0.68;
   const shell: Rect = { x0: sx0, y0, x1: sx0 + shellWidth, y1: y0 + height * roomShare };
   const room: Rect = { x0: shell.x0 + wallT, y0: shell.y0 + wallT, x1: shell.x1 - wallT, y1: shell.y1 - wallT };
   const roomW = room.x1 - room.x0;
@@ -73,30 +78,37 @@ export function computeLayout(w: number, h: number, top: number, bottom: number)
 
   const street: Rect = { x0: margin * 0.4, y0: shell.y1, x1: w - margin * 0.4, y1 };
   const queueY = shell.y1 + r + 3;
+  // A strip of road shows below the pavement when there is height to spare.
+  const kerbY = height < 420 ? street.y1 : street.y1 - r * 2.6;
   const waitTop = Math.min(queueY + r * 5.5, street.y1 - r * 7);
   const waitArea: Rect = {
     x0: shell.x0 + r * 2,
     y0: Math.max(queueY + r * 3, waitTop),
     x1: shell.x1 - r * 2,
-    y1: street.y1 - r * 1.6,
+    y1: Math.min(street.y1 - r * 1.6, kerbY - r * 0.4),
   };
 
-  const boothW = clamp(roomW * 0.22, 84, 230);
-  const boothH = clamp(roomH * 0.11, 24, 52);
+  // The DJ stands between the back wall and the decks, so the booth is two bots deep.
+  const boothW = clamp(roomW * 0.24, 96, 250);
+  const boothH = clamp(r * 5, 32, Math.max(32, roomH * 0.2));
   const booth: Rect = { x0: cx - boothW / 2, y0: room.y0, x1: cx + boothW / 2, y1: room.y0 + boothH };
-  const sp = boothH * 0.92;
+  const sp = boothH * 0.78;
   const gap = clamp(roomW * 0.03, 8, 28);
   const speakers: [Rect, Rect] = [
     { x0: booth.x0 - gap - sp, y0: room.y0 + 3, x1: booth.x0 - gap, y1: room.y0 + 3 + sp },
     { x0: booth.x1 + gap, y0: room.y0 + 3, x1: booth.x1 + gap + sp, y1: room.y0 + 3 + sp },
   ];
 
-  const floor: Rect = {
-    x0: room.x0 + roomW * 0.1,
-    x1: room.x1 - roomW * 0.1,
-    y0: booth.y1 + roomH * 0.1,
-    y1: room.y1 - roomH * 0.15,
-  };
+  // Light tiles: about one bot each, snapped so the floor is a whole number of them.
+  const sideGap = r * 2;
+  const floorW = roomW - sideGap * 2;
+  const cols = Math.max(4, Math.round(floorW / (r * 2.7)));
+  const tile = floorW / cols;
+  const freeTop = booth.y1 + r * 1.6;
+  const freeBottom = room.y1 - r * 3.4;
+  const rows = Math.max(2, Math.floor((freeBottom - freeTop) / tile));
+  const floorY0 = freeTop + (freeBottom - freeTop - rows * tile) / 2;
+  const floor: Rect = { x0: room.x0 + sideGap, x1: room.x1 - sideGap, y0: floorY0, y1: floorY0 + rows * tile };
 
   return {
     w,
@@ -109,12 +121,15 @@ export function computeLayout(w: number, h: number, top: number, bottom: number)
     lanes,
     queueY,
     street,
+    kerbY,
     waitArea,
     floor,
     booth,
     speakers,
     obstacles: [booth, ...speakers],
-    tile: r * 3.4,
+    tile,
+    cols,
+    rows,
   };
 }
 
