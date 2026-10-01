@@ -67,7 +67,7 @@ src/        browser: canvas scene, physics, admission queue, UI
 shared/     request/response contract and validation used by both sides
 worker/     Worker entry, Clef input builder, response parser
 test/       Vitest suites for the Worker, the contract, the queue and the layout
-public/     favicon, social image (og.png is rendered from og.svg), static headers
+public/     favicon, live screenshots, square demo, static headers
 ```
 
 ## Develop
