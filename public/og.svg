@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="tile" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0H0V34" fill="none" stroke="#f3ebe1" stroke-opacity="0.05"/>
+    </pattern>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <path d="M0 0V6" stroke="#f3ebe1" stroke-opacity="0.18"/>
+    </pattern>
+    <radialGradient id="pool1"><stop offset="0" stop-color="#ff6b5b" stop-opacity="0.22"/><stop offset="1" stop-color="#ff6b5b" stop-opacity="0"/></radialGradient>
+    <radialGradient id="pool2"><stop offset="0" stop-color="#45dde6" stop-opacity="0.18"/><stop offset="1" stop-color="#45dde6" stop-opacity="0"/></radialGradient>
+    <radialGradient id="pool3"><stop offset="0" stop-color="#b49cff" stop-opacity="0.2"/><stop offset="1" stop-color="#b49cff" stop-opacity="0"/></radialGradient>
+    <g id="eyes-up">
+      <circle cx="-5" cy="-3" r="4.2" fill="#fffaf2"/><circle cx="5" cy="-3" r="4.2" fill="#fffaf2"/>
+      <circle cx="-5" cy="-4.6" r="2.2" fill="#1b1512"/><circle cx="5" cy="-4.6" r="2.2" fill="#1b1512"/>
+    </g>
+    <g id="eyes-side">
+      <circle cx="-3" cy="-2" r="4.2" fill="#fffaf2"/><circle cx="7" cy="-2" r="4.2" fill="#fffaf2"/>
+      <circle cx="-1.4" cy="-2" r="2.2" fill="#1b1512"/><circle cx="8.6" cy="-2" r="2.2" fill="#1b1512"/>
+    </g>
+  </defs>
+  <rect width="1200" height="630" fill="#161210"/>
+  <!-- club shell -->
+  <rect x="560" y="40" width="600" height="380" fill="#1e1916"/>
+  <rect x="560" y="40" width="600" height="380" fill="url(#tile)"/>
+  <rect x="640" y="130" width="440" height="210" fill="#241e1a" stroke="#f3ebe1" stroke-opacity="0.14"/>
+  <circle cx="760" cy="220" r="170" fill="url(#pool1)"/>
+  <circle cx="960" cy="260" r="160" fill="url(#pool2)"/>
+  <circle cx="860" cy="170" r="150" fill="url(#pool3)"/>
+  <path d="M548 28H1172V432H548Z M560 40V420H1160V40Z" fill="url(#hatch)" fill-rule="evenodd"/>
+  <path d="M548 28H1172V432H548Z M560 40V420H1160V40Z" fill="#f3ebe1" fill-opacity="0.06" fill-rule="evenodd"/>
+  <g fill="none" stroke="#f3ebe1" stroke-opacity="0.55" stroke-width="1.5">
+    <rect x="548" y="28" width="624" height="404"/>
+    <rect x="560" y="40" width="600" height="380"/>
+  </g>
+  <!-- doors -->
+  <g>
+    <rect x="740" y="419" width="40" height="14" fill="#161210"/>
+    <rect x="840" y="419" width="40" height="14" fill="#161210"/>
+    <rect x="940" y="419" width="40" height="14" fill="#161210"/>
+    <path d="M740 426V386" stroke="#f3ebe1" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M840 426H880" stroke="#f3ebe1" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M940 426H980" stroke="#f3ebe1" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="742" y="434" width="36" height="3" rx="1.5" fill="#c4f04a"/>
+    <rect x="842" y="434" width="36" height="3" rx="1.5" fill="#b49cff"/>
+    <rect x="942" y="434" width="36" height="3" rx="1.5" fill="#ff6b5b"/>
+  </g>
+  <!-- DJ booth -->
+  <rect x="790" y="40" width="140" height="40" rx="5" fill="#f3ebe1" fill-opacity="0.05" stroke="#f3ebe1" stroke-opacity="0.45" stroke-width="1.5"/>
+  <circle cx="822" cy="60" r="12" fill="none" stroke="#f3ebe1" stroke-opacity="0.45"/>
+  <circle cx="898" cy="60" r="12" fill="none" stroke="#f3ebe1" stroke-opacity="0.45"/>
+  <!-- dancers -->
+  <g>
+    <g transform="translate(700 200)"><circle r="13" fill="#c4f04a"/><use href="#eyes-side"/></g>
+    <g transform="translate(728 222)"><circle r="13" fill="#b49cff"/><use href="#eyes-up"/></g>
+    <g transform="translate(690 236)"><circle r="13" fill="#45dde6"/><use href="#eyes-side"/></g>
+    <g transform="translate(900 190)"><circle r="13" fill="#ff6b5b"/><use href="#eyes-up"/></g>
+    <g transform="translate(930 210)"><circle r="13" fill="#45dde6"/><use href="#eyes-side"/></g>
+    <g transform="translate(905 228)"><circle r="13" fill="#c4f04a"/><use href="#eyes-up"/></g>
+    <g transform="translate(990 280)"><circle r="13" fill="#b49cff"/><use href="#eyes-side"/></g>
+    <g transform="translate(800 290)"><circle r="13" fill="#ff6b5b"/><use href="#eyes-side"/></g>
+    <g transform="translate(760 400)"><circle r="13" fill="#45dde6"/><use href="#eyes-up"/></g>
+  </g>
+  <!-- line outside -->
+  <g>
+    <g transform="translate(860 452)"><circle r="13" fill="#c4f04a"/><use href="#eyes-up"/></g>
+    <g transform="translate(1010 470)"><circle r="13" fill="#ff6b5b"/><use href="#eyes-side"/></g>
+    <g transform="translate(800 520)"><circle r="13" fill="#b49cff"/><use href="#eyes-up"/></g>
+    <g transform="translate(900 540)"><circle r="13" fill="#45dde6"/><use href="#eyes-up"/></g>
+    <g transform="translate(960 515)"><circle r="13" fill="#ff6b5b"/><use href="#eyes-up"/></g>
+    <g transform="translate(1060 560)"><circle r="13" fill="#c4f04a"/><use href="#eyes-side"/></g>
+    <g transform="translate(700 560)"><circle r="13" fill="#45dde6"/><use href="#eyes-up"/></g>
+  </g>
+  <!-- title -->
+  <g fill="#f3ebe1" font-family="Helvetica Neue, Arial, sans-serif" font-weight="900">
+    <text x="64" y="300" font-size="132" letter-spacing="-6">B</text>
+    <circle cx="200" cy="254" r="44" fill="#ff6b5b"/>
+    <circle cx="186" cy="246" r="11" fill="#fffaf2"/><circle cx="214" cy="246" r="11" fill="#fffaf2"/>
+    <circle cx="190" cy="248" r="5.6" fill="#1b1512"/><circle cx="218" cy="248" r="5.6" fill="#1b1512"/>
+    <text x="246" y="300" font-size="132" letter-spacing="-6">T</text>
+    <text x="64" y="420" font-size="132" letter-spacing="-6">CLUB</text>
+  </g>
+  <text x="68" y="486" fill="#f3ebe1" fill-opacity="0.6" font-family="Helvetica Neue, Arial, sans-serif" font-size="26" font-weight="500">Write the door policy. Clef-flash decides.</text>
+</svg>

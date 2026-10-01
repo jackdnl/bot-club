@@ -1,0 +1,24 @@
+{
+  "name": "bot-club",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A tiny top-down nightclub where Cloudflare Clef-flash decides who gets in.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "npm run build && wrangler dev",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test && npm run build",
+    "cf-typegen": "wrangler types",
+    "deploy": "npm run check && wrangler deploy"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.146.0"
+  }
+}
