@@ -6,6 +6,8 @@ Admitted bots go through the door and join the dance floor. Rejected bots bounce
 
 Choose **Custom rule**, write any rule (3–140 characters), then **Apply** or press Enter.
 Presets are optional starting points; you can edit those too.
+Color rules use each bot's visible body color: red/coral, green/lime,
+purple/lavender, or blue/cyan/turquoise. For example, "Only green dots" or "No purple bots."
 
 [Play Bot Club](https://bot-club.jadu.workers.dev) · [Download the square demo](https://bot-club.jadu.workers.dev/demo/bot-club-square.mp4)
 
@@ -19,7 +21,8 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
 ## How it works
 
 - **One bot per request.** The browser sends at most 6 requests at a time, one for each door.
-  Each request carries the door policy and a single generated profile (name, species, job, item, intro).
+  Each request carries the door policy and a single generated profile (name, species, job, item, intro, color).
+  The renderer and the model use the same profile color; color is not inferred from species or items.
 - **The rule is locked when the request starts.** Changing the policy only affects bots whose
   request hasn't been sent yet. The guest card shows the rule each bot was judged by.
 - **The Worker decides what the model sees.** `POST /api/admit` checks the input and asks
@@ -42,6 +45,7 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
 |---|---|
 | Door policy | 3–140 characters |
 | Profile fields | name/species ≤ 40, job/item ≤ 48, intro ≤ 160 |
+| Profile color | Required: `red`, `green`, `purple`, or `blue`. Older open tabs need a refresh. |
 | Request body | ≤ 2 KB, JSON only, same-origin only |
 | Concurrency | 6 requests per tab |
 | Club / line | 150 admitted, 100 in line (Reset starts a new night) |

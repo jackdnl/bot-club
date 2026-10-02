@@ -3,7 +3,8 @@ import { validatePolicy } from '../shared/contract';
 import { AdmissionDesk, type Ticket, type TicketStatus } from './admissions';
 import { STATUS_LABEL, facts, itemLine } from './describe';
 import { Metrics } from './metrics';
-import { DEFAULT_POLICY, PALETTE, PRESETS, createProfile } from './profiles';
+import { DEFAULT_POLICY, PRESETS, createProfile } from './profiles';
+import { BOT_APPEARANCE, BOT_COLORS } from '../shared/colors';
 import { World } from './scene/world';
 
 const CLUB_CAPACITY = 150;
@@ -126,9 +127,10 @@ function spawn(requested: number): number {
   }
   const gap = Math.min(0.04, 1.4 / n);
   for (let i = 0; i < n; i++) {
+    const id = nextId++;
     const ticket: Ticket = {
-      id: nextId++,
-      profile: createProfile(),
+      id,
+      profile: createProfile(Math.random, BOT_COLORS[id % BOT_COLORS.length]!),
       status: 'waiting',
       policy: null,
       attempts: 0,
@@ -378,7 +380,10 @@ function renderCard(): void {
   const key = `${ticket.id}:${ticket.version}:${status}:${pinned}`;
   if (key === cardKey) return;
   cardKey = key;
-  cardEls.swatch.style.background = PALETTE[ticket.id % PALETTE.length]!;
+  const appearance = BOT_APPEARANCE[ticket.profile.color];
+  cardEls.swatch.style.background = appearance.hex;
+  cardEls.swatch.setAttribute('role', 'img');
+  cardEls.swatch.setAttribute('aria-label', `${appearance.description} bot`);
   cardEls.name.textContent = ticket.profile.name;
   cardEls.status.textContent = STATUS_LABEL[status];
   cardEls.status.className = `pill ${status}`;
@@ -547,7 +552,10 @@ function fillGuestRow(li: HTMLLIElement, ticket: Ticket, status: TicketStatus, p
   const summary = document.createElement('summary');
   const swatch = document.createElement('span');
   swatch.className = 'swatch';
-  swatch.style.background = PALETTE[ticket.id % PALETTE.length]!;
+  const appearance = BOT_APPEARANCE[ticket.profile.color];
+  swatch.style.background = appearance.hex;
+  swatch.setAttribute('role', 'img');
+  swatch.setAttribute('aria-label', `${appearance.description} bot`);
   const name = document.createElement('span');
   name.className = 'g-name';
   name.textContent = ticket.profile.name;

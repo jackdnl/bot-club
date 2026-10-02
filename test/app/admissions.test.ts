@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdmissionDesk, type Ticket } from '../../src/admissions';
+import type { AdmitRequest } from '../../shared/contract';
 
-const profile = { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Hi.' };
+const profile = { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Hi.', color: 'green' as const };
 let nextId = 1;
 const ticket = (): Ticket => ({
   id: nextId++,
@@ -26,7 +27,7 @@ const apiError = (status: number, code: string, retryable: boolean, headers: Rec
 
 /** A fetch whose responses are released by the test. */
 function controlledFetch() {
-  const calls: { body: { policy: string }; resolve: (r: Response) => void; reject: (e: unknown) => void; signal: AbortSignal }[] = [];
+  const calls: { body: AdmitRequest; resolve: (r: Response) => void; reject: (e: unknown) => void; signal: AbortSignal }[] = [];
   const fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
     return new Promise<Response>((resolve, reject) => {
       const signal = init!.signal!;
@@ -55,6 +56,7 @@ describe('AdmissionDesk', () => {
     const tickets = Array.from({ length: 20 }, ticket);
     tickets.forEach((t) => desk.enqueue(t));
     expect(calls).toHaveLength(6);
+    expect(calls.map((call) => call.body.bot.color)).toEqual(tickets.slice(0, 6).map((t) => t.profile.color));
     expect(desk.inflightCount).toBe(6);
     expect(desk.queuedCount).toBe(14);
     calls[0]!.resolve(verdict('admit'));

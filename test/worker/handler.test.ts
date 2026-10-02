@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { handleRequest, type AppEnv } from '../../worker/index';
 
 const ORIGIN = 'https://bot-club.example';
-const bot = { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Been dancing since 1743.' };
+const bot = { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Been dancing since 1743.', color: 'green' as const };
 const goodBody = { policy: 'Supernatural creatures only. No humans.', bot };
 
 function makeEnv(run: AppEnv['AI']['run'], limiter?: AppEnv['ADMIT_LIMITER']) {
@@ -49,6 +49,7 @@ describe('POST /api/admit', () => {
     expect(model).toBe('@cf/cloudflare/clef-flash');
     expect(input.model).toBe('clef-flash');
     expect(input.state).toContain('Supernatural creatures only. No humans.');
+    expect(input.state).toContain('Visible dot/body color: green (lime)');
     expect(input.questions.admission.criteria).toHaveProperty('admit');
   });
 
@@ -131,6 +132,15 @@ describe('POST /api/admit', () => {
     const { env, run } = makeEnv(clefAdmit);
     const res = await handleRequest(admit({ ...goodBody, model: '@cf/meta/llama-3' }), env);
     expect(res.status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('does not invent a color for older clients that omit it', async () => {
+    const { color: _color, ...oldBot } = bot;
+    const { env, run } = makeEnv(clefAdmit);
+    const res = await handleRequest(admit({ ...goodBody, bot: oldBot }), env);
+    expect(res.status).toBe(400);
+    expect((await errorOf(res)).message).toContain('Refresh Bot Club');
     expect(run).not.toHaveBeenCalled();
   });
 
