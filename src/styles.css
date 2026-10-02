@@ -185,11 +185,10 @@ a {
   flex: 1;
   min-width: 0;
   height: 34px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 1px solid rgba(var(--ink-rgb), 0.28);
-  border-radius: 0;
-  background: transparent;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--ink-rgb), 0.22);
+  border-radius: 10px;
+  background: rgba(var(--ink-rgb), 0.035);
   font-size: clamp(15px, 1.9vmin, 18px);
   font-weight: 500;
   text-overflow: ellipsis;
@@ -197,12 +196,16 @@ a {
 
 .policy input:focus {
   outline: none;
-  border-bottom-color: var(--lime);
+  border-color: var(--lime);
 }
 
 .policy.dirty input {
-  border-bottom-style: dashed;
-  border-bottom-color: var(--lime);
+  border-style: dashed;
+  border-color: var(--lime);
+}
+
+.policy:not(.dirty) .apply {
+  display: none;
 }
 
 .apply,
@@ -829,8 +832,8 @@ a {
     font-size: 16px;
   }
 
-  .policy:not(.dirty) .apply {
-    display: none;
+  #custom-rule {
+    margin-right: auto;
   }
 
   /* Full-width rule on its own line so the whole policy stays readable; buttons sit below. */
@@ -907,9 +910,14 @@ a {
 
 @media (max-height: 520px) and (orientation: landscape) {
   .top {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'title policy metrics';
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'title metrics' 'policy policy';
+    row-gap: 6px;
     padding-top: 8px;
+  }
+
+  .policy {
+    max-width: none;
   }
 
   .title {

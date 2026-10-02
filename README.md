@@ -4,6 +4,9 @@ A tiny top-down nightclub. You write the door policy, then send bots to the door
 [Clef-flash](https://developers.cloudflare.com/workers-ai/models/clef-flash/) model checks each one.
 Admitted bots go through the door and join the dance floor. Rejected bots bounce off and walk away.
 
+Choose **Custom rule**, write any rule (3–140 characters), then **Apply** or press Enter.
+Presets are optional starting points; you can edit those too.
+
 [Play Bot Club](https://bot-club.jadu.workers.dev) · [Download the square demo](https://bot-club.jadu.workers.dev/demo/bot-club-square.mp4)
 
 ![Bot Club live on Cloudflare](public/preview.png)
