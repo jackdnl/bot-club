@@ -19,6 +19,7 @@ const top = $('top');
 const dock = $('dock');
 const policyForm = $<HTMLFormElement>('policy-form');
 const policyInput = $<HTMLInputElement>('policy');
+const customRuleButton = $<HTMLButtonElement>('custom-rule');
 const applyButton = $<HTMLButtonElement>('apply');
 const presetsToggle = $<HTMLButtonElement>('presets-toggle');
 const presetsMenu = $('presets');
@@ -238,6 +239,11 @@ function updatePolicyUi(): void {
 }
 
 policyInput.value = activePolicy;
+customRuleButton.addEventListener('click', () => {
+  closePresets();
+  policyInput.focus();
+  policyInput.select();
+});
 policyInput.addEventListener('input', updatePolicyUi);
 policyInput.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && draftState().dirty) {
@@ -259,7 +265,7 @@ policyForm.addEventListener('submit', (event) => {
   updatePolicyUi();
   policyInput.blur();
   const atDoor = desk.inflightCount;
-  say(atDoor ? 'New rule set. Bots already at the door keep the old one.' : 'New rule set for the next bots at the door.');
+  say(atDoor ? 'Rule applied. Current checks keep their rule.' : 'Rule applied.', 'info', 1800);
 });
 
 for (const preset of PRESETS) {

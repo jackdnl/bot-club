@@ -34,7 +34,8 @@
       <form class="policy" id="policy-form" autocomplete="off" novalidate>
         <label class="quiet" for="policy">Door policy</label>
         <div class="policy-field">
-          <input id="policy" name="policy" maxlength="140" spellcheck="false" enterkeyhint="done" placeholder="Door policy" />
+          <input id="policy" name="policy" maxlength="140" spellcheck="true" enterkeyhint="done" placeholder="Write your own rule…" />
+          <button type="button" id="custom-rule" class="ghost" aria-controls="policy">Custom rule</button>
           <button type="submit" id="apply" class="apply" disabled>Apply</button>
           <div class="presets-wrap">
             <button type="button" id="presets-toggle" class="ghost" aria-haspopup="menu" aria-expanded="false" aria-controls="presets">Presets</button>
