@@ -4,8 +4,8 @@ A tiny top-down nightclub. You write the door policy, then send bots to the door
 [Clef-flash](https://developers.cloudflare.com/workers-ai/models/clef-flash/) model checks each one.
 Admitted bots go through the door and join the dance floor. Rejected bots bounce off and walk away.
 
-Choose **Custom rule**, write any rule (3–140 characters), then **Apply** or press Enter.
-Presets are optional starting points; you can edit those too.
+Tap the rule to pick a ready-made one, or write your own (3–140 characters) and press Enter.
+Send bots with **+5**, **+25** or **+100**, and click any bot to see who it is and what Clef-flash decided.
 Color rules use each bot's visible body color: red/coral, green/lime,
 purple/lavender, or blue/cyan/turquoise. For example, "Only green dots" or "No purple bots."
 
@@ -16,7 +16,7 @@ purple/lavender, or blue/cyan/turquoise. For example, "Only green dots" or "No p
 Every verdict comes from a real model call. There is no local fallback: if the model can't be
 reached, the bot is marked as failed and you can retry it. The model can be wrong, and the app
 shows whatever it decided. The default rule, "No humans. Everyone else is welcome.", gives a lively
-mixed floor; stricter rules like the Monsters preset are a fun way to see where it gets things wrong.
+mixed floor; stricter rules like "Only magical beings" are a fun way to see where it gets things wrong.
 
 ## How it works
 
@@ -24,7 +24,7 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
   Each request carries the door policy and a single generated profile (name, species, job, item, intro, color).
   The renderer and the model use the same profile color; color is not inferred from species or items.
 - **The rule is locked when the request starts.** Changing the policy only affects bots whose
-  request hasn't been sent yet. The guest card shows the rule each bot was judged by.
+  request hasn't been sent yet. A bot's card notes the earlier rule if it was judged by one.
 - **The Worker decides what the model sees.** `POST /api/admit` checks the input and asks
   `@cf/cloudflare/clef-flash` one fixed `choice` question (`admit` or `reject`). It returns
   the model's choice, its per-option probabilities, its separate `confidence` field (which is
@@ -33,11 +33,12 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
 - **Animation doesn't wait on the network.** The canvas runs its own physics loop. The guest
   card and list show the verdict as soon as it arrives; the bot then acts it out at its door.
   "Admitted" counts permission granted, so a bot may still be walking in.
-- **Two different timings.** *AI call* is how long the Worker waited on the Workers AI binding.
-  That includes binding and service overhead, not just model inference. *Round trip* is
-  measured in the browser from sending the request to reading the response.
-- **Metrics only count successes.** Decisions per second (rolling 10 s) and median round trip
-  (last 100) leave out failed requests. Turned-away is a running total for the current night.
+- **Two different timings.** The bot card shows both. The Clef-flash time is how long the
+  Worker waited on the Workers AI binding, including binding and service overhead, not just model
+  inference. The ⚡ time is the round trip, measured in the browser from sending the request to
+  reading the response.
+- **Metrics only count successes.** The ⚡ median round trip (last 100) leaves out failed
+  requests. The admitted and turned-away counts are running totals for the current night.
 
 ### Limits
 
@@ -48,7 +49,7 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
 | Profile color | Required: `red`, `green`, `purple`, or `blue`. Older open tabs need a refresh. |
 | Request body | ≤ 2 KB, JSON only, same-origin only |
 | Concurrency | 6 requests per tab |
-| Club / line | 150 admitted, 100 in line (Reset starts a new night) |
+| Club / line | 150 admitted, 100 in line (Start over begins a new night) |
 | Rate limit | About 120 requests per 10 s per IP (Workers rate limiting binding). Counted per Cloudflare location and eventually consistent, so it slows a noisy client but is not a global spend cap. If the limiter itself errors, the Worker fails closed with a retryable 503. |
 | Model timeout | 15 s in the Worker, 25 s in the browser |
 
@@ -58,7 +59,7 @@ mixed floor; stricter rules like the Monsters preset are a fun way to see where 
 |---|---|---|
 | 429 | `rate_limited` | Pauses the whole line for `Retry-After` seconds, then sends the same bot again. After 4 waits it gives up. |
 | 503 | `upstream_busy`, `limiter_unavailable` | Same as 429. |
-| 504 / 502 | `upstream_timeout`, `upstream_error`, `upstream_malformed` | One automatic retry, then the bot is marked failed and you can retry it from its card or the Retry button. |
+| 504 / 502 | `upstream_timeout`, `upstream_error`, `upstream_malformed` | One automatic retry, then the bot is marked failed and you can retry it from its card or with **Retry** in the bottom bar. |
 | 400 / 413 / 415 / 403 | validation | Marked failed, no automatic retry. |
 
 A rejection is a normal result, not an error. Timeouts and failures never show up as rejections.

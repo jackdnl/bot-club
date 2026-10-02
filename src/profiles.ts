@@ -3,14 +3,15 @@ import { BOT_COLORS, type BotColor } from '../shared/colors';
 
 export const DEFAULT_POLICY = 'No humans. Everyone else is welcome.';
 
-export const PRESETS: readonly { label: string; policy: string }[] = [
-  { label: 'No humans', policy: DEFAULT_POLICY },
-  { label: 'Monsters', policy: 'Only magical beings. No humans, ordinary animals or machines.' },
-  { label: 'Glow', policy: 'Only guests carrying something that glows.' },
-  { label: 'Night shift', policy: 'Night-shift workers only. Day jobs go home.' },
-  { label: 'Machines', policy: 'Robots and androids only. No organic life.' },
-  { label: 'Tiny', policy: 'Nobody bigger than a fridge.' },
-  { label: 'No spreadsheets', policy: 'Anyone welcome except people who work with spreadsheets.' },
+export const PRESETS: readonly string[] = [
+  DEFAULT_POLICY,
+  'Only magical beings. No humans, ordinary animals or machines.',
+  'Only green dots may enter.',
+  'Only guests carrying something that glows.',
+  'Night-shift workers only. Day jobs go home.',
+  'Robots and androids only. No organic life.',
+  'Nobody bigger than a fridge.',
+  'Anyone welcome except people who work with spreadsheets.',
 ];
 
 type Kind = 'supernatural' | 'human' | 'machine' | 'animal' | 'odd';
