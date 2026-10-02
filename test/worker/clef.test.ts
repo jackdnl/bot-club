@@ -3,7 +3,7 @@ import { MalformedUpstream, buildInput, buildState, parseAdmission } from '../..
 
 const request = {
   policy: 'Supernatural creatures only. No humans.',
-  bot: { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Been dancing since 1743.' },
+  bot: { name: 'Mina', species: 'Vampire', job: 'Night nurse', item: 'a lantern', intro: 'Been dancing since 1743.', color: 'green' as const },
 };
 
 describe('buildInput', () => {
@@ -19,6 +19,18 @@ describe('buildInput', () => {
     const state = buildState(request);
     expect(state).toContain('DOOR POLICY: Supernatural creatures only. No humans.');
     for (const value of Object.values(request.bot)) expect(state).toContain(value);
+  });
+
+  it.each([
+    ['red', 'red (coral)'],
+    ['green', 'green (lime)'],
+    ['purple', 'purple (lavender)'],
+    ['blue', 'blue (cyan, turquoise)'],
+  ] as const)('gives Clef the visible %s dot color independently of other profile text', (color, description) => {
+    const state = buildState({ ...request, bot: { ...request.bot, color, species: 'Green ghost', item: 'a red lantern' } });
+    expect(state).toContain(`Visible dot/body color: ${description}`);
+    expect(state).toContain('Species: Green ghost');
+    expect(state).toContain('Carrying: a red lantern');
   });
 });
 

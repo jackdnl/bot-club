@@ -1,4 +1,5 @@
 import type { BotProfile } from '../shared/contract';
+import { BOT_COLORS, type BotColor } from '../shared/colors';
 
 export const DEFAULT_POLICY = 'No humans. Everyone else is welcome.';
 
@@ -98,8 +99,6 @@ const ITEMS = [
   'a glowing mushroom', 'a calculator', 'a library card', 'a bag of bones', 'a candle', 'a torch',
 ];
 
-export const PALETTE = ['#ff6b5b', '#c4f04a', '#b49cff', '#45dde6'] as const;
-
 export type Rng = () => number;
 
 function pick<T>(list: readonly T[], rng: Rng): T {
@@ -115,7 +114,7 @@ function pickKind(rng: Rng): Kind {
   return 'supernatural';
 }
 
-export function createProfile(rng: Rng = Math.random): BotProfile {
+export function createProfile(rng: Rng = Math.random, color: BotColor = pick(BOT_COLORS, rng)): BotProfile {
   const kind = pickKind(rng);
   const species = pick(SPECIES.filter((s) => s.kind === kind), rng);
   const name = species.names && rng() < 0.8 ? pick(species.names, rng) : pick(NAMES, rng);
@@ -123,5 +122,5 @@ export function createProfile(rng: Rng = Math.random): BotProfile {
   const lines = [pick(species.lines, rng)];
   if (job.line && rng() < 0.55) lines.push(job.line);
   const intro = lines.join(' ').slice(0, 160).trim();
-  return { name, species: species.name, job: job.job, item: pick(ITEMS, rng), intro };
+  return { name, species: species.name, job: job.job, item: pick(ITEMS, rng), intro, color };
 }

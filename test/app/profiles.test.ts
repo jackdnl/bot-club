@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateAdmitRequest, validatePolicy } from '../../shared/contract';
 import { DEFAULT_POLICY, PRESETS, createProfile } from '../../src/profiles';
+import { BOT_COLORS } from '../../shared/colors';
 
 function seeded(seed: number) {
   return () => {
@@ -10,6 +11,16 @@ function seeded(seed: number) {
 }
 
 describe('profiles', () => {
+  it('puts an explicitly assigned appearance into the profile sent to the Worker', () => {
+    for (const color of BOT_COLORS) {
+      const bot = createProfile(seeded(7), color);
+      expect(bot.color).toBe(color);
+      expect(validateAdmitRequest({ policy: 'Only green dots.', bot })).toEqual({
+        ok: true, value: { policy: 'Only green dots.', bot },
+      });
+    }
+  });
+
   it('always produces profiles the Worker accepts', () => {
     const rng = seeded(7);
     for (let i = 0; i < 2000; i++) {

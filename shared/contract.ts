@@ -1,6 +1,7 @@
 // Request/response contract shared by the browser and the Worker.
 // The Worker owns the model and question schema; the browser only sends a
 // short door policy and one guest profile per request.
+import { BOT_COLORS, type BotColor } from './colors';
 
 export const LIMITS = {
   /** Hard cap on the raw request body, in bytes. */
@@ -16,7 +17,7 @@ export const LIMITS = {
 export const PROFILE_FIELDS = ['name', 'species', 'job', 'item', 'intro'] as const;
 export type ProfileField = (typeof PROFILE_FIELDS)[number];
 
-export type BotProfile = Record<ProfileField, string>;
+export type BotProfile = Record<ProfileField, string> & { color: BotColor };
 
 export interface AdmitRequest {
   policy: string;
@@ -117,11 +118,17 @@ export function validateAdmitRequest(input: unknown): Validation<AdmitRequest> {
   const bot = input.bot;
   if (!isPlainObject(bot)) return { ok: false, field: 'bot', message: 'bot must be an object' };
   for (const key of Object.keys(bot)) {
-    if (!(PROFILE_FIELDS as readonly string[]).includes(key)) {
+    if (key !== 'color' && !(PROFILE_FIELDS as readonly string[]).includes(key)) {
       return { ok: false, field: `bot.${key.slice(0, 24)}`, message: `unexpected field "bot.${key.slice(0, 24)}"` };
     }
   }
-  const profile = {} as BotProfile;
+  if (bot.color === undefined) {
+    return { ok: false, field: 'bot.color', message: 'bot.color is missing. Refresh Bot Club and try again.' };
+  }
+  if (typeof bot.color !== 'string' || !(BOT_COLORS as readonly string[]).includes(bot.color)) {
+    return { ok: false, field: 'bot.color', message: 'bot.color must be red, green, purple or blue' };
+  }
+  const profile = { color: bot.color as BotColor } as BotProfile;
   for (const field of PROFILE_FIELDS) {
     const checked = checkText(bot[field], `bot.${field}`, LIMITS[field]);
     if (!checked.ok) return checked;

@@ -1,5 +1,5 @@
 import type { Ticket, TicketStatus } from '../admissions';
-import { PALETTE } from '../profiles';
+import { BOT_COLORS, PALETTE } from '../../shared/colors';
 import { INK, WARM, boothParts, paintBody, paintFloor, spillPath, tileSeam, type Booth } from './floor';
 import { computeLayout, remapPoint, type Layout, type Rect } from './layout';
 
@@ -82,7 +82,7 @@ export class Bot {
     delay: number,
   ) {
     this.delay = delay;
-    this.hue = ticket.id % PALETTE.length;
+    this.hue = BOT_COLORS.indexOf(ticket.profile.color);
     this.color = PALETTE[this.hue]!;
     if (this.style === 'shy') this.slotR = rand(0.85, 1);
   }
