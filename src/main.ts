@@ -1,54 +1,48 @@
 import './styles.css';
-import { validatePolicy } from '../shared/contract';
 import { AdmissionDesk, type Ticket, type TicketStatus } from './admissions';
-import { STATUS_LABEL, facts, itemLine } from './describe';
+import { CLUB_CAPACITY, resolveRuleEdit, roomFor, type Room } from './controls';
+import { guestBody, paintPill, paintSwatch } from './guest';
 import { Metrics } from './metrics';
 import { DEFAULT_POLICY, PRESETS, createProfile } from './profiles';
-import { BOT_APPEARANCE, BOT_COLORS } from '../shared/colors';
+import { BOT_COLORS } from '../shared/colors';
 import { World } from './scene/world';
 
-const CLUB_CAPACITY = 150;
-const LINE_CAPACITY = 100;
 const ROSTER_LIMIT = 600;
-const HOLD_DELAY_MS = 380;
-const HOLD_INTERVAL_MS = 650;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const canvas = $<HTMLCanvasElement>('scene');
 const top = $('top');
 const dock = $('dock');
-const policyForm = $<HTMLFormElement>('policy-form');
-const policyInput = $<HTMLInputElement>('policy');
-const customRuleButton = $<HTMLButtonElement>('custom-rule');
-const applyButton = $<HTMLButtonElement>('apply');
-const presetsToggle = $<HTMLButtonElement>('presets-toggle');
-const presetsMenu = $('presets');
-const spawnButton = $<HTMLButtonElement>('spawn');
-const spawnLabel = $('spawn-label');
-const sizeButtons = [...document.querySelectorAll<HTMLButtonElement>('.sizes button')];
-const resetButton = $<HTMLButtonElement>('reset');
-const retryAllButton = $<HTMLButtonElement>('retry-all');
-const guestsToggle = $<HTMLButtonElement>('guests-toggle');
+const ruleForm = $<HTMLFormElement>('rule-form');
+const ruleInput = $<HTMLTextAreaElement>('rule');
+const ruleSave = $<HTMLButtonElement>('rule-save');
+const rulesToggle = $<HTMLButtonElement>('rules-toggle');
+const rulesList = $<HTMLUListElement>('rules');
+const sendButtons = [...document.querySelectorAll<HTMLButtonElement>('.send button')];
+const sendGroup = sendButtons[0]!.parentElement!;
+const sendState = $('send-state');
+const retryButton = $<HTMLButtonElement>('retry');
+const restartButton = $<HTMLButtonElement>('restart');
+const scoreButton = $<HTMLButtonElement>('score');
 const guestsDialog = $<HTMLDialogElement>('guests');
 const guestsClose = $<HTMLButtonElement>('guests-close');
 const guestList = $<HTMLOListElement>('guest-list');
 const guestsEmpty = $('guests-empty');
 const notice = $('notice');
 const card = $('card');
-const metricsEls = {
-  rate: $('m-rate'),
-  median: $('m-median'),
-  waiting: $('m-waiting'),
-  inside: $('m-inside'),
-  cap: $('m-cap'),
-  out: $('m-out'),
+const cardEls = {
+  swatch: $('card-swatch'),
+  name: $('card-name'),
+  status: $('card-status'),
+  body: $('card-body'),
+  close: $<HTMLButtonElement>('card-close'),
 };
+const score = { inside: $('n-in'), out: $('n-out'), ms: $('n-ms') };
 
 // ------------------------------------------------------------------ state
 
 let activePolicy = DEFAULT_POLICY;
-let batchSize = 25;
 let nextId = 1;
 let turnedAway = 0;
 const roster = new Map<number, Ticket>();
@@ -67,21 +61,18 @@ const desk = new AdmissionDesk({
   getPolicy: () => activePolicy,
   concurrency: 6,
   hooks: {
-    onStart: (ticket) => {
-      metrics.noteStart(performance.now());
-      world.assignLane(ticket);
-    },
+    onStart: (ticket) => world.assignLane(ticket),
     onDecision: (ticket) => {
-      if (ticket.verdict) metrics.record(ticket.verdict.rttMs, performance.now());
+      if (ticket.verdict) metrics.record(ticket.verdict.rttMs);
       // Cumulative, so trimming old guests from the roster never lowers the totals.
       if (ticket.status === 'rejected') turnedAway++;
     },
     onError: (ticket) => {
       world.releaseToStreet(ticket);
-      const failed = countStatus('error');
-      say(`${ticket.profile.name} got no answer: ${ticket.error?.message ?? 'unknown error'}${failed > 1 ? ` (${failed} waiting for retry)` : ''}`, 'warn');
+      say(`${ticket.profile.name} got no answer. ${ticket.error?.message ?? ''}`.trim(), 'warn');
+      updateControls();
     },
-    onPause: () => updateMetrics(),
+    onPause: () => updateScore(),
   },
 });
 
@@ -91,18 +82,8 @@ function countStatus(...statuses: TicketStatus[]): number {
   return n;
 }
 
-function lineCount(): number {
-  return countStatus('waiting', 'pending', 'retrying', 'error');
-}
-
-function spawnable(): { count: number; reason: 'club' | 'line' | null } {
-  const inside = countStatus('admitted');
-  const line = lineCount();
-  const byLine = LINE_CAPACITY - line;
-  const byClub = CLUB_CAPACITY - inside - line;
-  if (byClub <= 0) return { count: 0, reason: 'club' };
-  if (byLine <= 0) return { count: 0, reason: 'line' };
-  return { count: Math.min(byLine, byClub), reason: byClub < byLine ? 'club' : 'line' };
+function room(): Room {
+  return roomFor(countStatus('admitted'), countStatus('waiting', 'pending', 'retrying', 'error'));
 }
 
 // ------------------------------------------------------------------ notices
@@ -116,15 +97,12 @@ function say(text: string, tone: 'info' | 'warn' = 'info', ms = 3200): void {
   noticeTimer = setTimeout(() => notice.classList.remove('show'), ms);
 }
 
-// ------------------------------------------------------------------ spawning
+// ------------------------------------------------------------------ sending bots
 
-function spawn(requested: number): number {
-  const room = spawnable();
-  const n = Math.min(requested, room.count);
-  if (n <= 0) {
-    say(room.reason === 'club' ? `${CLUB_CAPACITY} admitted: the club is full. Reset to start a new night.` : `The line is full at ${LINE_CAPACITY}. Let the door catch up.`, 'warn');
-    return 0;
-  }
+function send(requested: number): void {
+  const space = room();
+  const n = Math.min(requested, space.count);
+  if (n <= 0) return;
   const gap = Math.min(0.04, 1.4 / n);
   for (let i = 0; i < n; i++) {
     const id = nextId++;
@@ -142,10 +120,9 @@ function spawn(requested: number): number {
     roster.set(ticket.id, ticket);
     world.addBot(ticket, i * gap);
   }
-  if (n < requested) say(`Only ${n} more fit ${room.reason === 'club' ? 'in the club' : 'in the line'}.`);
+  if (n < requested) say(`Only ${n} more fit.`);
   trimRoster();
   updateControls();
-  return n;
 }
 
 function trimRoster(): void {
@@ -156,213 +133,191 @@ function trimRoster(): void {
   }
 }
 
-let holdDelay: ReturnType<typeof setTimeout> | undefined;
-let holdRepeat: ReturnType<typeof setInterval> | undefined;
-let suppressClick = false;
-
-function stopHold(): void {
-  clearTimeout(holdDelay);
-  clearInterval(holdRepeat);
-  holdDelay = undefined;
-  holdRepeat = undefined;
-  spawnButton.classList.remove('holding');
+for (const button of sendButtons) {
+  button.addEventListener('click', () => send(Number(button.dataset.count)));
 }
 
-spawnButton.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0 || spawnButton.disabled) return;
-  suppressClick = false;
-  stopHold();
-  // Capture so a finger drifting off the button does not end the hold early.
-  spawnButton.setPointerCapture(event.pointerId);
-  holdDelay = setTimeout(() => {
-    suppressClick = true;
-    spawnButton.classList.add('holding');
-    // Keep releasing while held; a full line just skips a beat, a full club ends the hold.
-    const tick = () => {
-      const room = spawnable();
-      if (room.count > 0) spawn(batchSize);
-      else if (room.reason === 'club') {
-        spawn(batchSize);
-        stopHold();
-      }
-    };
-    tick();
-    holdRepeat = setInterval(tick, HOLD_INTERVAL_MS);
-  }, HOLD_DELAY_MS);
-});
-for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
-  spawnButton.addEventListener(type, stopHold);
+// ------------------------------------------------------------------ door rule
+
+let highlighted = -1;
+
+function rulesOpen(): boolean {
+  return !rulesList.hidden;
 }
-window.addEventListener('blur', stopHold);
-spawnButton.addEventListener('contextmenu', (event) => event.preventDefault());
-spawnButton.addEventListener('click', () => {
-  if (suppressClick) {
-    suppressClick = false;
-    return;
+
+function syncRule(): void {
+  const edit = resolveRuleEdit(ruleInput.value, activePolicy);
+  ruleSave.hidden = edit.kind !== 'apply';
+  ruleForm.classList.toggle('editing', edit.kind !== 'same');
+  if (edit.kind !== 'invalid') ruleInput.removeAttribute('aria-invalid');
+}
+
+function highlight(i: number): void {
+  const items = [...rulesList.children] as HTMLLIElement[];
+  highlighted = i < 0 || !items.length ? -1 : i % items.length;
+  items.forEach((li, k) => li.classList.toggle('active', k === highlighted));
+  const current = items[highlighted];
+  if (current) {
+    ruleInput.setAttribute('aria-activedescendant', current.id);
+    current.scrollIntoView({ block: 'nearest' });
+  } else ruleInput.removeAttribute('aria-activedescendant');
+}
+
+function openRules(): void {
+  if (rulesOpen()) return;
+  PRESETS.forEach((preset, i) => rulesList.children[i]!.setAttribute('aria-selected', String(preset === activePolicy)));
+  rulesList.hidden = false;
+  ruleInput.setAttribute('aria-expanded', 'true');
+  rulesToggle.setAttribute('aria-expanded', 'true');
+  highlight(-1);
+}
+
+function closeRules(): void {
+  if (!rulesOpen()) return;
+  rulesList.hidden = true;
+  ruleInput.setAttribute('aria-expanded', 'false');
+  rulesToggle.setAttribute('aria-expanded', 'false');
+  highlight(-1);
+}
+
+/** The field wraps so the whole rule stays readable; it grows with the text. */
+function fitRule(): void {
+  ruleInput.style.height = 'auto';
+  ruleInput.style.height = `${ruleInput.scrollHeight + ruleInput.offsetHeight - ruleInput.clientHeight}px`;
+}
+
+function useRule(value: string): void {
+  activePolicy = value;
+  ruleInput.value = value;
+  closeRules();
+  syncRule();
+  fitRule();
+}
+
+/** Enter, ✓ or leaving the field. A too-short rule keeps focus when submitted and reverts on blur. */
+function commitRule(leaving: boolean): boolean {
+  const edit = resolveRuleEdit(ruleInput.value, activePolicy);
+  if (edit.kind === 'invalid') {
+    if (leaving) {
+      useRule(activePolicy);
+      return true;
+    }
+    ruleInput.setAttribute('aria-invalid', 'true');
+    say('A rule needs 3 to 140 characters.', 'warn');
+    return false;
   }
-  spawn(batchSize);
+  useRule(edit.value);
+  return true;
+}
+
+PRESETS.forEach((preset, i) => {
+  const li = document.createElement('li');
+  li.id = `rule-${i}`;
+  li.setAttribute('role', 'option');
+  li.textContent = preset;
+  // Keep focus in the field so the pick doesn't look like leaving it.
+  li.addEventListener('pointerdown', (event) => event.preventDefault());
+  li.addEventListener('click', () => {
+    useRule(preset);
+    ruleInput.blur();
+  });
+  rulesList.append(li);
 });
 
-for (const button of sizeButtons) {
-  button.addEventListener('click', () => setBatch(Number(button.dataset.size)));
-  button.addEventListener('keydown', (event) => {
-    const i = sizeButtons.indexOf(button);
-    const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
-    if (!step) return;
-    event.preventDefault();
-    const next = sizeButtons[(i + step + sizeButtons.length) % sizeButtons.length]!;
-    setBatch(Number(next.dataset.size));
-    next.focus();
+ruleInput.value = activePolicy;
+// Focusing or clicking the unchanged rule offers the ready-made ones.
+for (const type of ['focus', 'click'] as const) {
+  ruleInput.addEventListener(type, () => {
+    if (resolveRuleEdit(ruleInput.value, activePolicy).kind === 'same') openRules();
   });
 }
-
-function setBatch(size: number): void {
-  batchSize = size;
-  for (const b of sizeButtons) {
-    const on = Number(b.dataset.size) === size;
-    b.setAttribute('aria-checked', String(on));
-    b.tabIndex = on ? 0 : -1;
-  }
-  updateControls();
-}
-
-// ------------------------------------------------------------------ policy
-
-function draftState(): { value: string; valid: boolean; dirty: boolean } {
-  const checked = validatePolicy(policyInput.value);
-  const value = checked.ok ? checked.value : policyInput.value;
-  return { value, valid: checked.ok, dirty: value !== activePolicy };
-}
-
-function updatePolicyUi(): void {
-  const { valid, dirty } = draftState();
-  applyButton.disabled = !(valid && dirty);
-  policyForm.classList.toggle('dirty', dirty);
-}
-
-policyInput.value = activePolicy;
-customRuleButton.addEventListener('click', () => {
-  closePresets();
-  policyInput.focus();
-  policyInput.select();
+ruleInput.addEventListener('input', () => {
+  fitRule();
+  // Writing your own rule hides the ready-made ones; clearing the field brings them back.
+  if (ruleInput.value.trim() === '' || resolveRuleEdit(ruleInput.value, activePolicy).kind === 'same') openRules();
+  else closeRules();
+  syncRule();
 });
-policyInput.addEventListener('input', updatePolicyUi);
-policyInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && draftState().dirty) {
-    event.stopPropagation();
-    policyInput.value = activePolicy;
-    updatePolicyUi();
-  }
-});
-policyForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const checked = validatePolicy(policyInput.value);
-  if (!checked.ok) {
-    say('Door policy needs 3 to 140 characters.', 'warn');
-    return;
-  }
-  if (checked.value === activePolicy) return;
-  activePolicy = checked.value;
-  policyInput.value = activePolicy;
-  updatePolicyUi();
-  policyInput.blur();
-  const atDoor = desk.inflightCount;
-  say(atDoor ? 'Rule applied. Current checks keep their rule.' : 'Rule applied.', 'info', 1800);
-});
-
-for (const preset of PRESETS) {
-  const item = document.createElement('button');
-  item.type = 'button';
-  item.setAttribute('role', 'menuitem');
-  const small = document.createElement('small');
-  small.textContent = preset.label;
-  item.append(small, preset.policy);
-  item.addEventListener('click', () => {
-    policyInput.value = preset.policy;
-    updatePolicyUi();
-    closePresets();
-    (applyButton.disabled ? policyInput : applyButton).focus();
-  });
-  presetsMenu.append(item);
-}
-
-function closePresets(): void {
-  presetsMenu.hidden = true;
-  presetsToggle.setAttribute('aria-expanded', 'false');
-}
-
-presetsToggle.addEventListener('click', () => {
-  const open = presetsMenu.hidden;
-  presetsMenu.hidden = !open;
-  presetsToggle.setAttribute('aria-expanded', String(open));
-  if (open) presetsMenu.querySelector('button')?.focus();
-});
-presetsMenu.addEventListener('keydown', (event) => {
-  const items = [...presetsMenu.querySelectorAll('button')];
-  const i = items.indexOf(document.activeElement as HTMLButtonElement);
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+ruleInput.addEventListener('keydown', (event) => {
+  if (event.isComposing) return;
+  // Arrows move the caret in a wrapped rule; they walk the list only while it is open (or with Alt).
+  if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && (rulesOpen() || event.altKey)) {
     event.preventDefault();
-    items[(i + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    const n = PRESETS.length;
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    openRules();
+    highlight(highlighted === -1 ? (step > 0 ? 0 : n - 1) : (highlighted + step + n) % n);
+  } else if (event.key === 'Enter') {
+    // One line of rule: Enter uses it rather than adding a newline.
+    event.preventDefault();
+    if (rulesOpen() && highlighted >= 0) {
+      useRule(PRESETS[highlighted]!);
+      ruleInput.blur();
+    } else ruleForm.requestSubmit();
   } else if (event.key === 'Escape') {
     event.stopPropagation();
-    closePresets();
-    presetsToggle.focus();
-  } else if (event.key === 'Tab') {
-    closePresets();
+    if (rulesOpen()) closeRules();
+    else {
+      useRule(activePolicy);
+      ruleInput.blur();
+    }
   }
 });
-document.addEventListener('pointerdown', (event) => {
-  if (!presetsMenu.hidden && !(event.target as Element).closest('.presets-wrap')) closePresets();
+ruleForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (commitRule(false)) ruleInput.blur();
 });
+ruleForm.addEventListener('focusout', (event) => {
+  if (ruleForm.contains(event.relatedTarget as Node | null)) return;
+  commitRule(true);
+});
+rulesToggle.addEventListener('pointerdown', (event) => event.preventDefault());
+rulesToggle.addEventListener('click', () => {
+  if (rulesOpen()) closeRules();
+  else {
+    ruleInput.focus();
+    openRules();
+  }
+});
+ruleSave.addEventListener('pointerdown', (event) => event.preventDefault());
 
-// ------------------------------------------------------------------ reset / retry
+// ------------------------------------------------------------------ start over / retry
 
-resetButton.addEventListener('click', () => {
-  stopHold();
+function startOver(): void {
   desk.reset();
   world.clear();
   roster.clear();
   metrics.reset();
   turnedAway = 0;
-  pinned = false;
-  setCardTicket(null);
+  select(null);
   notice.classList.remove('show');
   renderGuests();
   updateControls();
-  updateMetrics();
+  updateScore();
+}
+
+restartButton.addEventListener('click', () => {
+  startOver();
+  sendButtons.find((b) => !b.disabled)?.focus();
 });
 
-retryAllButton.addEventListener('click', () => {
-  let n = 0;
-  for (const t of roster.values()) if (desk.retry(t)) n++;
-  if (n) say(`Retrying ${n} under the current rule.`);
+retryButton.addEventListener('click', () => {
+  for (const t of roster.values()) desk.retry(t);
   updateControls();
 });
 
-// ------------------------------------------------------------------ inspect card
+// ------------------------------------------------------------------ bot card
 
-let pinned = false;
 let cardTicket: Ticket | null = null;
 let cardKey = '';
 let cardSide: 'right' | 'left' | 'above' | 'below' = 'right';
-
-const cardEls = {
-  swatch: $('card-swatch'),
-  name: $('card-name'),
-  status: $('card-status'),
-  meta: $('card-meta'),
-  item: $('card-item'),
-  intro: $('card-intro'),
-  facts: $('card-facts'),
-  retry: $<HTMLButtonElement>('card-retry'),
-  close: $<HTMLButtonElement>('card-close'),
-};
-
-function shownTicket(): Ticket | null {
-  const hover = world.hoverId !== null ? roster.get(world.hoverId) : undefined;
-  if (hover) return hover;
-  return world.selectedId !== null ? (roster.get(world.selectedId) ?? null) : null;
-}
+const cardRetry = document.createElement('button');
+cardRetry.type = 'button';
+cardRetry.className = 'btn warn';
+cardRetry.textContent = 'Retry';
+cardRetry.addEventListener('click', () => {
+  if (cardTicket && desk.retry(cardTicket)) updateControls();
+});
 
 function setCardTicket(ticket: Ticket | null): void {
   cardTicket = ticket;
@@ -377,32 +332,17 @@ function renderCard(): void {
   const ticket = cardTicket;
   if (!ticket) return;
   const status = world.displayStatus(ticket);
-  const key = `${ticket.id}:${ticket.version}:${status}:${pinned}`;
+  const key = `${ticket.id}:${ticket.version}:${status}:${activePolicy}`;
   if (key === cardKey) return;
+  const hadFocus = card.contains(document.activeElement);
   cardKey = key;
-  const appearance = BOT_APPEARANCE[ticket.profile.color];
-  cardEls.swatch.style.background = appearance.hex;
-  cardEls.swatch.setAttribute('role', 'img');
-  cardEls.swatch.setAttribute('aria-label', `${appearance.description} bot`);
+  paintSwatch(cardEls.swatch, ticket);
   cardEls.name.textContent = ticket.profile.name;
-  cardEls.status.textContent = STATUS_LABEL[status];
-  cardEls.status.className = `pill ${status}`;
-  cardEls.meta.textContent = `${ticket.profile.species} · ${ticket.profile.job}`;
-  cardEls.item.textContent = itemLine(ticket.profile.item);
-  cardEls.intro.textContent = `“${ticket.profile.intro}”`;
-  cardEls.facts.replaceChildren(
-    ...facts(ticket, status).flatMap((f) => {
-      const dt = document.createElement('dt');
-      dt.textContent = f.label;
-      const dd = document.createElement('dd');
-      dd.textContent = f.value;
-      if (f.tone) dd.className = f.tone;
-      return [dt, dd];
-    }),
-  );
-  cardEls.retry.hidden = !(status === 'error' && pinned);
-  card.classList.toggle('pinned', pinned && world.selectedId === ticket.id);
+  paintPill(cardEls.status, status);
+  cardEls.body.replaceChildren(...guestBody(ticket, status, activePolicy));
+  if (status === 'error') cardEls.body.append(cardRetry);
   card.hidden = false;
+  if (hadFocus && !card.contains(document.activeElement)) cardEls.close.focus();
 }
 
 function placeCard(): void {
@@ -410,10 +350,8 @@ function placeCard(): void {
   if (!ticket) return;
   const anchor = world.anchorOf(ticket.id);
   if (!anchor) {
-    // Bot walked off the street: close a hover card, keep nothing dangling.
-    if (world.selectedId === ticket.id) world.selectedId = null;
-    pinned = false;
-    setCardTicket(shownTicket());
+    // The bot walked off the street.
+    select(null);
     return;
   }
   const w = card.offsetWidth;
@@ -442,49 +380,33 @@ function placeCard(): void {
   world.cardRect = new DOMRect(x, y, w, h);
 }
 
-cardEls.close.addEventListener('click', () => deselect());
-cardEls.retry.addEventListener('click', () => {
-  if (cardTicket && desk.retry(cardTicket)) {
-    say(`Retrying ${cardTicket.profile.name} under the current rule.`);
-    updateControls();
-  }
-});
-
 function select(id: number | null): void {
   world.selectedId = id;
-  pinned = id !== null;
-  world.hoverId = null;
-  setCardTicket(shownTicket());
+  setCardTicket(id === null ? null : (roster.get(id) ?? null));
 }
 
-function deselect(): void {
+cardEls.close.addEventListener('click', () => {
   select(null);
-}
+  canvas.focus();
+});
 
 function localPoint(event: PointerEvent | MouseEvent): [number, number] {
   const rect = canvas.getBoundingClientRect();
   return [event.clientX - rect.left, event.clientY - rect.top];
 }
 
+// Hover only rings a bot; a click opens its card.
 canvas.addEventListener('pointermove', (event) => {
   if (event.pointerType !== 'mouse') return;
   const id = world.pick(...localPoint(event), 5);
   canvas.style.cursor = id === null ? '' : 'pointer';
-  if (id !== world.hoverId) {
-    world.hoverId = id;
-    setCardTicket(shownTicket());
-  }
+  world.hoverId = id;
 });
-canvas.addEventListener('pointerleave', () => {
-  if (world.hoverId === null) return;
-  world.hoverId = null;
-  setCardTicket(shownTicket());
-});
+canvas.addEventListener('pointerleave', () => (world.hoverId = null));
 canvas.addEventListener('click', (event) => {
   const pointerType = (event as PointerEvent).pointerType;
   const id = world.pick(...localPoint(event), pointerType === 'mouse' ? 6 : 14);
-  if (id === null || id === world.selectedId) deselect();
-  else select(id);
+  select(id === null || id === world.selectedId ? null : id);
 });
 canvas.addEventListener('keydown', (event) => {
   if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
@@ -497,15 +419,14 @@ canvas.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  if (!presetsMenu.hidden) {
-    closePresets();
-    return;
+  if (event.key === 'Escape' && cardTicket && !guestsDialog.open) {
+    const inCard = card.contains(document.activeElement);
+    select(null);
+    if (inCard) canvas.focus();
   }
-  if (world.selectedId !== null || cardTicket) deselect();
 });
 
-// ------------------------------------------------------------------ guests list
+// ------------------------------------------------------------------ guest list
 
 const guestRows = new Map<number, { li: HTMLLIElement; key: string }>();
 
@@ -523,7 +444,7 @@ function renderGuests(): void {
     seen.add(ticket.id);
     const status = world.displayStatus(ticket);
     const present = world.byId.has(ticket.id);
-    const key = `${ticket.version}:${status}:${present}`;
+    const key = `${ticket.version}:${status}:${present}:${activePolicy}`;
     let row = guestRows.get(ticket.id);
     if (!row) {
       row = { li: document.createElement('li'), key: '' };
@@ -546,16 +467,13 @@ function renderGuests(): void {
 }
 
 function fillGuestRow(li: HTMLLIElement, ticket: Ticket, status: TicketStatus, present: boolean): void {
-  const open = li.querySelector('details')?.open ?? false;
+  const old = li.querySelector('details');
   const details = document.createElement('details');
-  details.open = open;
+  details.open = old?.open ?? false;
   const summary = document.createElement('summary');
   const swatch = document.createElement('span');
   swatch.className = 'swatch';
-  const appearance = BOT_APPEARANCE[ticket.profile.color];
-  swatch.style.background = appearance.hex;
-  swatch.setAttribute('role', 'img');
-  swatch.setAttribute('aria-label', `${appearance.description} bot`);
+  paintSwatch(swatch, ticket);
   const name = document.createElement('span');
   name.className = 'g-name';
   name.textContent = ticket.profile.name;
@@ -563,51 +481,47 @@ function fillGuestRow(li: HTMLLIElement, ticket: Ticket, status: TicketStatus, p
   species.className = 'g-species';
   species.textContent = ticket.profile.species;
   const pill = document.createElement('span');
-  pill.className = `pill ${status}`;
-  pill.textContent = STATUS_LABEL[status];
+  paintPill(pill, status);
   summary.append(swatch, name, species, pill);
 
   const body = document.createElement('div');
   body.className = 'g-body';
-  const lines = [
-    `${ticket.profile.species} · ${ticket.profile.job}. ${itemLine(ticket.profile.item)}.`,
-    `“${ticket.profile.intro}”`,
-    ...facts(ticket, status).map((f) => `${f.label}: ${f.value}`),
-  ];
-  for (const text of lines) {
-    const p = document.createElement('p');
-    p.textContent = text;
-    body.append(p);
-  }
+  body.append(...guestBody(ticket, status, activePolicy, false));
+  const actions = document.createElement('div');
+  actions.className = 'g-actions';
   if (present) {
     const show = document.createElement('button');
     show.type = 'button';
-    show.className = 'ghost';
+    show.className = 'btn';
     show.textContent = 'Show on floor';
     show.addEventListener('click', () => {
       guestsDialog.close();
       select(ticket.id);
       canvas.focus();
     });
-    body.append(show);
+    actions.append(show);
   }
   if (status === 'error') {
     const retry = document.createElement('button');
     retry.type = 'button';
-    retry.className = 'ghost warn';
+    retry.className = 'btn warn';
     retry.textContent = 'Retry';
     retry.addEventListener('click', () => {
       desk.retry(ticket);
       updateControls();
       renderGuests();
     });
-    body.append(retry);
+    actions.append(retry);
   }
+  if (actions.childElementCount) body.append(actions);
   details.append(summary, body);
+  // Keep keyboard focus on the row that is being rebuilt under it.
+  const focused = old?.contains(document.activeElement) ? document.activeElement : null;
   li.replaceChildren(details);
+  if (focused) summary.focus();
 }
 
-guestsToggle.addEventListener('click', () => {
+scoreButton.addEventListener('click', () => {
   guestsDialog.showModal();
   renderGuests();
 });
@@ -617,52 +531,43 @@ guestsDialog.addEventListener('click', (event) => {
 });
 guestsDialog.addEventListener('close', () => {
   renderGuests();
-  guestsToggle.focus();
+  if (!cardTicket) scoreButton.focus();
 });
 
-// ------------------------------------------------------------------ metrics & controls
+// ------------------------------------------------------------------ score & controls
 
 function updateControls(): void {
-  const room = spawnable();
-  const n = Math.min(batchSize, room.count);
-  const holding = holdRepeat !== undefined;
-  // While held, a momentarily full line keeps the button live so the hold continues.
-  spawnButton.disabled = room.count <= 0 && !(holding && room.reason === 'line');
-  spawnLabel.textContent = room.count <= 0 ? (room.reason === 'club' ? 'Club full' : 'Line full') : `+${n} bots`;
-  if (room.count <= 0 && room.reason === 'club') stopHold();
+  const space = room();
+  const blocked = space.count <= 0;
+  for (const b of sendButtons) b.disabled = blocked;
+  sendGroup.classList.toggle('blocked', blocked);
+  sendState.hidden = !blocked;
+  sendState.textContent = space.limit === 'club' ? 'Club full' : 'Line full';
+  const full = blocked && space.limit === 'club';
+  restartButton.hidden = roster.size === 0;
+  restartButton.classList.toggle('primary', full);
   const failed = countStatus('error');
-  retryAllButton.hidden = failed === 0;
-  retryAllButton.textContent = `Retry ${failed}`;
+  retryButton.hidden = failed === 0;
+  retryButton.textContent = `Retry ${failed}`;
+  retryButton.setAttribute('aria-label', `Retry ${failed} ${failed === 1 ? 'bot' : 'bots'} with no answer`);
 }
 
-function updateMetrics(): void {
-  const now = performance.now();
-  const rate = metrics.rate(now);
-  metricsEls.rate.textContent = rate === null ? '–' : rate < 10 ? rate.toFixed(1) : String(Math.round(rate));
-  const median = metrics.median();
-  metricsEls.median.innerHTML = '';
-  if (median === null) metricsEls.median.textContent = '–';
-  else {
-    const unit = document.createElement('small');
-    unit.textContent = 'ms';
-    metricsEls.median.append(String(Math.round(median)), unit);
-  }
-  const waiting = countStatus('waiting', 'pending', 'retrying');
-  metricsEls.waiting.textContent = String(waiting);
+function updateScore(): void {
   const inside = countStatus('admitted');
-  metricsEls.inside.textContent = String(inside);
-  metricsEls.cap.textContent = `/${CLUB_CAPACITY}`;
-  metricsEls.inside.parentElement!.classList.toggle('full', inside >= CLUB_CAPACITY);
-  metricsEls.out.textContent = String(turnedAway);
+  score.inside.textContent = String(inside);
+  score.out.textContent = String(turnedAway);
+  scoreButton.classList.toggle('full', inside >= CLUB_CAPACITY);
+  scoreButton.setAttribute('aria-label', `Guests: ${inside} of ${CLUB_CAPACITY} admitted, ${turnedAway} turned away`);
+  scoreButton.title = `${inside} admitted · ${turnedAway} turned away`;
+  const median = metrics.median();
+  score.ms.textContent = median === null ? '–' : String(Math.round(median));
 
-  const pause = desk.pausedUntil - now;
-  if (pause > 0) {
-    say(`Door is rate limited. Resuming in ${Math.ceil(pause / 1000)}s.`, 'warn', 600);
-  }
+  const pause = desk.pausedUntil - performance.now();
+  if (pause > 0) say(`Rate limited. Resuming in ${Math.ceil(pause / 1000)}s.`, 'warn', 600);
 }
 
 setInterval(() => {
-  updateMetrics();
+  updateScore();
   updateControls();
   if (guestsDialog.open) renderGuests();
 }, 250);
@@ -682,7 +587,11 @@ function resize(): void {
 const observer = new ResizeObserver(() => resize());
 observer.observe(top);
 observer.observe(dock);
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => {
+  fitRule();
+  resize();
+});
+fitRule();
 resize();
 
 let last = performance.now();
@@ -692,14 +601,14 @@ function frame(now: number): void {
   const steps = Math.max(1, Math.ceil(dt / (1 / 60)));
   for (let i = 0; i < steps; i++) world.step(dt / steps);
   world.render();
-  const want = shownTicket();
-  if (want !== cardTicket) setCardTicket(want);
+  // The world drops a selection when its bot leaves; follow it.
+  if (cardTicket && world.selectedId !== cardTicket.id) select(world.selectedId);
   renderCard();
   placeCard();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-setBatch(25);
-updatePolicyUi();
-updateMetrics();
+syncRule();
+updateControls();
+updateScore();

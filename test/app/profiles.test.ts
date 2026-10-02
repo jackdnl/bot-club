@@ -41,7 +41,7 @@ describe('profiles', () => {
   });
 
   it('ships valid presets', () => {
-    expect(PRESETS[0]!.policy).toBe(DEFAULT_POLICY);
-    for (const preset of PRESETS) expect(validatePolicy(preset.policy).ok).toBe(true);
+    expect(PRESETS[0]).toBe(DEFAULT_POLICY);
+    for (const preset of PRESETS) expect(validatePolicy(preset).ok).toBe(true);
   });
 });

@@ -24,67 +24,74 @@
     <meta name="twitter:image" content="https://bot-club.jadu.workers.dev/og.png" />
   </head>
   <body>
-    <canvas id="scene" tabindex="0" aria-label="Club floor plan. Arrow keys step through bots, Escape closes the card."></canvas>
+    <canvas id="scene" tabindex="0" aria-label="Club floor. Arrow keys pick a bot."></canvas>
 
     <header class="top" id="top">
       <h1 class="title" aria-label="Bot Club">
         <span aria-hidden="true">B</span><span class="o" aria-hidden="true"><i></i><i></i></span><span aria-hidden="true">T CLUB</span>
       </h1>
 
-      <form class="policy" id="policy-form" autocomplete="off" novalidate>
-        <label class="quiet" for="policy">Door policy</label>
-        <div class="policy-field">
-          <input id="policy" name="policy" maxlength="140" spellcheck="true" enterkeyhint="done" placeholder="Write your own rule…" />
-          <button type="button" id="custom-rule" class="ghost" aria-controls="policy">Custom rule</button>
-          <button type="submit" id="apply" class="apply" disabled>Apply</button>
-          <div class="presets-wrap">
-            <button type="button" id="presets-toggle" class="ghost" aria-haspopup="menu" aria-expanded="false" aria-controls="presets">Presets</button>
-            <div id="presets" class="presets" role="menu" aria-label="Preset door policies" hidden></div>
-          </div>
-        </div>
+      <form class="rule" id="rule-form" autocomplete="off" novalidate>
+        <textarea
+          id="rule"
+          name="rule"
+          rows="1"
+          role="combobox"
+          aria-label="Door rule"
+          aria-autocomplete="none"
+          aria-expanded="false"
+          aria-controls="rules"
+          maxlength="140"
+          spellcheck="true"
+          enterkeyhint="done"
+        ></textarea>
+        <button type="submit" id="rule-save" class="rule-save" aria-label="Use this rule" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+        </button>
+        <button type="button" id="rules-toggle" class="rule-more" tabindex="-1" aria-label="Ready-made rules" aria-expanded="false" aria-controls="rules">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9.5 6 6 6-6" /></svg>
+        </button>
+        <ul id="rules" class="rules" role="listbox" aria-label="Ready-made rules" hidden></ul>
       </form>
 
-      <dl class="metrics" aria-label="Live metrics">
-        <div><dt>decisions/s</dt><dd id="m-rate">–</dd></div>
-        <div><dt>median trip</dt><dd id="m-median">–</dd></div>
-        <div><dt>waiting</dt><dd id="m-waiting">0</dd></div>
-        <div><dt>admitted</dt><dd><span id="m-inside">0</span><small id="m-cap">/150</small></dd></div>
-        <div class="m-extra"><dt>turned away</dt><dd id="m-out">0</dd></div>
-      </dl>
+      <div class="board">
+        <button type="button" class="score" id="score" aria-haspopup="dialog">
+          <span class="tally in"><i aria-hidden="true"></i><b id="n-in">0</b><small>/150</small></span>
+          <span class="tally out"><i aria-hidden="true"></i><b id="n-out">0</b></span>
+        </button>
+        <p class="speed" id="speed" title="Median answer time">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4.5 13.5h6.5L10 22l9-11.5h-6.5z" /></svg>
+          <span class="quiet">Median answer time</span>
+          <b id="n-ms">–</b><small>ms</small>
+        </p>
+      </div>
     </header>
 
     <p id="notice" class="notice" role="status" aria-live="polite"></p>
 
-    <section id="card" class="card" aria-label="Guest" hidden>
+    <section id="card" class="card" aria-labelledby="card-name" hidden>
       <div class="card-head">
         <span class="swatch" id="card-swatch"></span>
         <h2 class="card-name" id="card-name"></h2>
         <span class="pill" id="card-status"></span>
-        <button type="button" class="card-close" id="card-close" aria-label="Close guest card">×</button>
+        <button type="button" class="card-close" id="card-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
+        </button>
       </div>
-      <p class="card-meta" id="card-meta"></p>
-      <p class="card-item" id="card-item"></p>
-      <p class="card-intro" id="card-intro"></p>
-      <dl class="card-facts" id="card-facts"></dl>
-      <button type="button" class="card-retry" id="card-retry" hidden>Retry</button>
+      <div class="card-body" id="card-body"></div>
     </section>
 
     <footer class="dock" id="dock">
-      <div class="spawn">
-        <div class="sizes" role="radiogroup" aria-label="Batch size">
-          <button type="button" role="radio" aria-checked="false" data-size="5">5</button>
-          <button type="button" role="radio" aria-checked="true" data-size="25">25</button>
-          <button type="button" role="radio" aria-checked="false" data-size="100">100</button>
-        </div>
-        <button type="button" id="spawn" class="primary" aria-describedby="spawn-hint">
-          <span id="spawn-label">+25 bots</span>
-        </button>
-        <span id="spawn-hint" class="quiet">Hold to keep them coming</span>
+      <div class="send" role="group" aria-label="Send bots">
+        <span class="send-face" aria-hidden="true"><i></i><i></i></span>
+        <button type="button" data-count="5" aria-label="Send 5 bots">+5</button>
+        <button type="button" data-count="25" aria-label="Send 25 bots">+25</button>
+        <button type="button" data-count="100" aria-label="Send 100 bots">+100</button>
       </div>
+      <p class="send-state" id="send-state" hidden></p>
       <div class="tools">
-        <button type="button" id="retry-all" class="ghost warn" hidden>Retry</button>
-        <button type="button" id="guests-toggle" class="ghost" aria-haspopup="dialog">Guests</button>
-        <button type="button" id="reset" class="ghost">Reset</button>
+        <button type="button" id="retry" class="btn warn" hidden>Retry</button>
+        <button type="button" id="restart" class="btn" hidden>Start over</button>
       </div>
       <p class="credit">
         <a href="https://developers.cloudflare.com/workers-ai/models/clef-flash/" target="_blank" rel="noopener">Clef-flash</a>
@@ -96,7 +103,9 @@
     <dialog id="guests" class="guests" aria-labelledby="guests-title">
       <div class="guests-head">
         <h2 id="guests-title">Guests</h2>
-        <button type="button" class="ghost" id="guests-close">Close</button>
+        <button type="button" class="card-close" id="guests-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
+        </button>
       </div>
       <p class="guests-empty" id="guests-empty">Nobody yet.</p>
       <ol class="guest-list" id="guest-list"></ol>
